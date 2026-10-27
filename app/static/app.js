@@ -110,7 +110,7 @@ function renderTransactionRows(items, target, allowDelete=false) {
     if (allowDelete) return `<tr>
       <td>${escapeHtml(fmtDate(tx.occurred_at))}</td><td>${txBadge(tx.tx_type)}</td><td>${escapeHtml(assetLabel(tx.asset))}</td>
       <td>${escapeHtml(formatTxQuantity(tx))}</td><td>${escapeHtml(formatUnitPrice(tx))}</td><td>${fmtIDR(gross)}</td><td>${escapeHtml(tx.memo||'—')}</td>
-      <td><button class="tx-delete" data-delete-tx="${tx.id}" title="Hapus transaksi">Hapus</button></td></tr>`;
+      <td><div class="tx-actions"><button class="edit-button" data-edit-tx="${tx.id}" title="Ubah transaksi">Ubah</button><button class="tx-delete" data-delete-tx="${tx.id}" title="Hapus transaksi">Hapus</button></div></td></tr>`;
     return `<tr><td>${escapeHtml(fmtDate(tx.occurred_at))}</td><td>${txBadge(tx.tx_type)}</td><td>${escapeHtml(assetLabel(tx.asset))}</td><td>${escapeHtml(formatTxQuantity(tx))}</td><td>${escapeHtml(formatUnitPrice(tx))}</td></tr>`;
   }).join('');
 }
@@ -132,7 +132,9 @@ function renderMarket(market) {
     const changeText = delta == null ? 'Riwayat pembanding belum cukup' : `${Number(delta)>=0?'▲':'▼'} ${fmtPct(delta)} sejak pembaruan sebelumnya`;
     setText('goldChange', changeText);
     $('goldChange').className = `asset-delta ${delta==null?'':signedClass(delta)}`;
-    setText('goldStatus','Harga tercatat'); $('goldStatus').className='pill pill-good';
+    const goldStale = gold.freshness_status === 'stale';
+    setText('goldStatus', goldStale ? 'Snapshot basi · >24 jam' : gold.freshness_status === 'unknown' ? 'Waktu tidak valid' : 'Harga tercatat');
+    $('goldStatus').className = goldStale || gold.freshness_status === 'unknown' ? 'pill pill-neutral' : 'pill pill-good';
     setText('settingGoldBuy',`${fmtIDR(buyEntered)} ${rawUnit}`);
     setText('settingGoldSell',`${fmtIDR(sellEntered)} ${rawUnit}`);
     setText('settingGoldTime',fmtDate(gold.captured_at));
@@ -148,16 +150,25 @@ function renderMarket(market) {
 
   const spy = market?.spy || {};
   const fx = market?.fx || {};
-  const fxRate = (fx.status==='ok' && fx.price) ? Number(fx.price) : null;
-  if (spy.status === 'ok' && spy.price != null) {
+  const fxRate = (['ok','stale'].includes(fx.status) && fx.price) ? Number(fx.price) : null;
+  if (['ok','stale'].includes(spy.status) && spy.price != null) {
     $('spyPrice').innerHTML = `${escapeHtml(fmtUSD(spy.price))} <small>USD / unit</small>`;
     const pct = spy.percent_change;
     setText('spyChange', pct == null ? 'Quote tersedia; perubahan harian tidak diberikan provider.' : `${Number(pct)>=0?'▲':'▼'} ${fmtPct(pct)} hari ini · ${spy.change!=null?fmtUSD(spy.change):''}`);
     $('spyChange').className = `asset-delta ${pct==null?'':signedClass(pct)}`;
     setText('spyPriceIdr', fxRate ? fmtIDR(Number(spy.price)*fxRate) : '—');
-    setText('spyUpdated', `Quote ${fmtDate(spy.timestamp)}`);
-    setText('spyStatus', spy.market_open === true ? 'Pasar buka' : 'Quote tersedia'); $('spyStatus').className='pill pill-good';
-    setText('settingSpyStatus','Quote tersedia'); $('spySourceStatus').className='pill pill-good'; setText('spySourceStatus','Terhubung');
+    const timeLabel = spy.timestamp_precision === 'exact_quote' ? `Waktu quote ${fmtDate(spy.timestamp)}`
+      : spy.timestamp_precision === 'session_date' ? `Tanggal sesi ${fmtDate(spy.timestamp, false)}`
+      : spy.timestamp_precision === 'provider_datetime' ? `Waktu dari provider ${fmtDate(spy.timestamp)}`
+      : spy.timestamp_precision === 'provider_timestamp' ? `Timestamp provider ${fmtDate(spy.timestamp)}`
+      : 'Waktu quote tidak disediakan provider';
+    setText('spyUpdated', timeLabel);
+    const quoteIsStale = spy.status === 'stale';
+    setText('spyStatus', quoteIsStale ? 'Data tersimpan · basi' : (spy.market_open === true ? 'Pasar buka' : spy.market_open === false ? 'Pasar tutup · quote terakhir' : 'Quote tersedia'));
+    $('spyStatus').className = quoteIsStale ? 'pill pill-neutral' : 'pill pill-good';
+    setText('settingSpyStatus', quoteIsStale ? 'Quote lama · provider gagal' : 'Quote tersedia');
+    $('spySourceStatus').className = quoteIsStale ? 'pill pill-neutral' : 'pill pill-good';
+    setText('spySourceStatus', quoteIsStale ? 'Data tersimpan · basi' : 'Terhubung');
   } else {
     $('spyPrice').innerHTML = `— <small>USD / unit</small>`;
     setText('spyChange', spy.message || 'Isi API key penyedia market-data untuk mengambil harga asli.');
@@ -182,12 +193,18 @@ function renderPortfolio(pf) {
     $('metricPnl').className=`metric-value ${signedClass(pf.total_pnl_idr)}`;
     setText('metricPnlPct',pf.total_pnl_pct==null?'—':fmtPct(pf.total_pnl_pct));
     $('metricPnlPct').className=`metric-help ${signedClass(pf.total_pnl_idr)}`;
-    setText('metricValueFoot', 'Valuasi lengkap berdasarkan quote terbaru yang tersedia');
+    setText('metricValueFoot', (pf.market_data_warnings||[]).length ? 'Nilai memakai data yang mungkin sudah basi; periksa peringatan.' : 'Valuasi lengkap berdasarkan quote terbaru yang tersedia');
   }
   const note = $('valuationNotice');
-  if (!pf.valuation_complete && (pf.valuation_warnings||[]).length) {
-    note.hidden=false; setText('valuationNoticeText',pf.valuation_warnings.join('. ')+'. Total nilai dan P/L sengaja tidak ditampilkan agar tidak keliru.');
-  } else note.hidden=true;
+  const missingWarnings = pf.valuation_warnings || [];
+  const freshnessWarnings = pf.market_data_warnings || [];
+  const allWarnings = [...missingWarnings, ...freshnessWarnings];
+  if (allWarnings.length) {
+    note.hidden = false;
+    setText('valuationNoticeTitle', missingWarnings.length ? 'Valuasi belum lengkap' : 'Periksa kesegaran data harga');
+    const extra = missingWarnings.length ? ' Nilai total dan P/L lengkap disembunyikan agar tidak keliru.' : '';
+    setText('valuationNoticeText', allWarnings.join('. ') + '.' + extra);
+  } else note.hidden = true;
   renderAllocation(pf);
   renderHoldings(pf);
   setText('cashPageBalance',fmtIDR(pf.cash_balance_idr));
@@ -237,6 +254,47 @@ function resetGoalForm() {
   setText('goalModalSubtitle', 'Tambahkan tujuan dan progres awal.');
   setText('saveGoalBtn', 'Simpan target');
 }
+function resetTransactionForm() {
+  const form = $('transactionForm');
+  if (form) form.reset();
+  $('txId').value = '';
+  $('txFee').value = '0';
+  $('txDate').value = localDatetimeInput();
+  $('txPriceUnit').value = '0.01G';
+  $('txPrice').dataset.touched = '';
+  setText('transactionModalTitle', 'Catat transaksi');
+  setText('transactionModalSubtitle', 'Masukkan data dari transaksi atau riwayat sebenarnya.');
+  setText('saveTxBtn', 'Simpan transaksi');
+  updateTxFields();
+}
+function editTransaction(tx) {
+  resetTransactionForm();
+  $('txId').value = String(tx.id);
+  $('txType').value = tx.tx_type;
+  $('txAsset').value = tx.asset;
+  $('txQuantity').value = tx.quantity || '';
+  $('txPrice').value = tx.unit_price_entered ?? tx.unit_price ?? '';
+  $('txPrice').dataset.touched = '1';
+  $('txPriceUnit').value = tx.price_unit || (tx.asset === 'GOLD' ? 'GRAM' : 'UNIT');
+  $('txCurrency').value = tx.currency || 'IDR';
+  $('txFx').value = tx.fx_rate || '';
+  $('txFee').value = tx.fee_idr ?? 0;
+  $('txAmount').value = tx.amount_idr || '';
+  $('txMemo').value = tx.memo || '';
+  if (tx.occurred_at) {
+    const dt = new Date(tx.occurred_at);
+    if (!Number.isNaN(dt.getTime())) {
+      const offset = dt.getTimezoneOffset();
+      $('txDate').value = new Date(dt.getTime() - offset * 60000).toISOString().slice(0, 16);
+    }
+  }
+  updateTxFields();
+  setText('transactionModalTitle', 'Ubah transaksi');
+  setText('transactionModalSubtitle', 'Perubahan hanya disimpan jika urutan kas dan kepemilikan tetap valid.');
+  setText('saveTxBtn', 'Simpan perubahan');
+  openModal('transactionModal');
+}
+
 function renderGoals(goals) {
   state.goals=goals;
   const preview = $('goalsPreview');
@@ -388,6 +446,12 @@ function initEvents() {
     }
     const dynamicPage=e.target.closest('[data-page-link]');
     if(dynamicPage){ showPage(dynamicPage.dataset.pageLink); }
+    const editTx=e.target.closest('[data-edit-tx]');
+    if(editTx){
+      const tx=(state.transactionsAll||[]).find(item=>String(item.id)===String(editTx.dataset.editTx));
+      if(!tx){toast('Transaksi tidak ditemukan. Muat ulang halaman.','error');return;}
+      editTransaction(tx);
+    }
     const delTx=e.target.closest('[data-delete-tx]');
     if(delTx){if(!confirm('Hapus transaksi ini? Ini dapat mengubah saldo, modal, dan P/L.'))return;try{await api(`/api/transactions/${delTx.dataset.deleteTx}`,{method:'DELETE'});toast('Transaksi dihapus.','success');await refreshAll();}catch(err){toast(err.message,'error');}}
     const editGoal=e.target.closest('[data-edit-goal]');
@@ -424,9 +488,14 @@ async function submitTransaction(e) {
     currency:isCash?'IDR':(asset==='SPY'?'USD':'IDR'),price_unit:isCash?null:(asset==='SPY'?'UNIT':$('txPriceUnit').value),fx_rate:asset==='SPY'?Number($('txFx').value||0):1,
     fee_idr:Number($('txFee').value||0),amount_idr:isCash?Number($('txAmount').value||0):0,memo:$('txMemo').value.trim()};
   const btn=$('saveTxBtn');btn.disabled=true;btn.textContent='Menyimpan...';
-  try {await api('/api/transactions',{method:'POST',body:JSON.stringify(payload)});closeModal('transactionModal');form.reset();$('txFee').value='0';$('txDate').value=localDatetimeInput();$('txPriceUnit').value='0.01G';$('txPrice').dataset.touched='';updateTxFields();toast('Transaksi tersimpan. Modal dan P/L dihitung ulang.','success');await refreshAll();}
-  catch(err){toast(err.message,'error');}
-  finally{btn.disabled=false;btn.textContent='Simpan transaksi';}
+  const txId=$('txId').value.trim();
+  try {
+    await api(txId?`/api/transactions/${encodeURIComponent(txId)}`:'/api/transactions',{method:txId?'PUT':'POST',body:JSON.stringify(payload)});
+    closeModal('transactionModal');resetTransactionForm();
+    toast(txId?'Transaksi diperbarui. Modal dan P/L dihitung ulang.':'Transaksi tersimpan. Modal dan P/L dihitung ulang.','success');
+    await refreshAll();
+  } catch(err){toast(err.message,'error');}
+  finally{btn.disabled=false;btn.textContent=$('txId').value?'Simpan perubahan':'Simpan transaksi';}
 }
 async function submitGoldRate(e) {
   e.preventDefault();
