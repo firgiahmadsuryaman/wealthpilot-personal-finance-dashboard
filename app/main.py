@@ -27,12 +27,25 @@ load_dotenv(BASE_DIR / ".env")
 API_KEY = os.getenv("TWELVE_DATA_API_KEY", "").strip()
 SPY_CACHE_SECONDS = max(30, int(os.getenv("SPY_CACHE_SECONDS", "60")))
 USDIDR_CACHE_SECONDS = max(60, int(os.getenv("USDIDR_CACHE_SECONDS", "900")))
+SPY_QUOTE_INTERVAL = os.getenv("SPY_QUOTE_INTERVAL", "1min").strip() or "1min"
+USDIDR_QUOTE_INTERVAL = os.getenv("USDIDR_QUOTE_INTERVAL", "1min").strip() or "1min"
+SPY_SERIES_CACHE_SECONDS = max(60, int(os.getenv("SPY_SERIES_CACHE_SECONDS", "60")))
 
-app = FastAPI(title="WealthPilot", version="0.3.0", description="Personal investment dashboard; local-first MVP")
+app = FastAPI(title="WealthPilot", version="0.4.1", description="Personal investment dashboard; local-first MVP")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static")
 
 _quote_cache: dict[str, dict] = {}
 _quote_cache_time: dict[str, float] = {}
+_series_cache: dict[str, dict] = {}
+_series_cache_time: dict[str, float] = {}
+
+# Rentang grafik: intraday memakai candle 1 menit atau 5 menit; rentang panjang memakai candle harian.
+SERIES_RANGES = {
+    "1D": ("1min", 390),
+    "5D": ("5min", 390),
+    "1M": ("1day", 30),
+    "1Y": ("1day", 252),
+}
 
 
 def now_iso() -> str:
@@ -105,6 +118,19 @@ def init_db() -> None:
                 source TEXT NOT NULL,
                 timestamp_precision TEXT NOT NULL DEFAULT 'provider_timestamp'
             );
+            CREATE TABLE IF NOT EXISTS market_bars (
+                symbol TEXT NOT NULL,
+                bar_interval TEXT NOT NULL,
+                datetime TEXT NOT NULL,
+                open REAL,
+                high REAL,
+                low REAL,
+                close REAL NOT NULL,
+                volume REAL,
+                source TEXT NOT NULL,
+                fetched_at TEXT NOT NULL,
+                PRIMARY KEY(symbol, bar_interval, datetime)
+            );
             """
         )
         # Safe small migrations for a database created by an earlier MVP build.
@@ -143,7 +169,7 @@ def favicon():
 
 # ---------- Market data ----------
 
-def _quote_from_twelvedata(symbol: str, ttl: int) -> dict:
+def _quote_from_twelvedata(symbol: str, ttl: int, force: bool = False) -> dict:
     """Ambil quote provider dan pertahankan sumber serta waktu quote aslinya."""
     if not API_KEY:
         return {
@@ -154,16 +180,18 @@ def _quote_from_twelvedata(symbol: str, ttl: int) -> dict:
             "price": None,
             "timestamp": None,
             "timestamp_precision": "unavailable",
+            "interval": SPY_QUOTE_INTERVAL if symbol == "SPY" else USDIDR_QUOTE_INTERVAL,
         }
 
     now = time.time()
-    if symbol in _quote_cache and now - _quote_cache_time.get(symbol, 0) < ttl:
+    if not force and symbol in _quote_cache and now - _quote_cache_time.get(symbol, 0) < ttl:
         return dict(_quote_cache[symbol], cache_status="cached")
 
+    interval = SPY_QUOTE_INTERVAL if symbol == "SPY" else USDIDR_QUOTE_INTERVAL
     try:
         response = httpx.get(
             "https://api.twelvedata.com/quote",
-            params={"symbol": symbol, "apikey": API_KEY},
+            params={"symbol": symbol, "interval": interval, "apikey": API_KEY},
             timeout=12.0,
             headers={"User-Agent": "WealthPilot/0.3 personal-dashboard"},
         )
@@ -218,6 +246,7 @@ def _quote_from_twelvedata(symbol: str, ttl: int) -> dict:
             "timestamp": quote_timestamp,
             "timestamp_precision": timestamp_precision,
             "market_open": data.get("is_market_open"),
+            "interval": interval,
             "source": "Twelve Data",
             "cache_status": "fresh",
             "message": None,
@@ -271,6 +300,7 @@ def _stale_quote_or_error(symbol: str, message: str) -> dict:
                 "source": previous["source"],
                 "currency": "USD" if symbol == "SPY" else "IDR",
                 "market_open": None,
+                "interval": SPY_QUOTE_INTERVAL if symbol == "SPY" else USDIDR_QUOTE_INTERVAL,
                 "message": f"Menampilkan quote tersimpan; data terbaru gagal diambil. {message}",
             }
     except sqlite3.Error:
@@ -283,8 +313,154 @@ def _stale_quote_or_error(symbol: str, message: str) -> dict:
         "timestamp": None,
         "timestamp_precision": "unavailable",
         "source": "Twelve Data",
+        "interval": SPY_QUOTE_INTERVAL if symbol == "SPY" else USDIDR_QUOTE_INTERVAL,
         "message": message,
     }
+
+
+def _series_items_from_db(symbol: str, interval: str, limit: int) -> list[dict]:
+    """Baca candle provider yang pernah tersimpan, tanpa membuat titik data sintetis."""
+    try:
+        with connect() as db:
+            rows = db.execute(
+                "SELECT * FROM market_bars WHERE symbol=? AND bar_interval=? ORDER BY datetime DESC LIMIT ?",
+                (symbol, interval, limit),
+            ).fetchall()
+        items = [dict(row) for row in reversed(rows)]
+        for item in items:
+            item["price"] = item.get("close")
+        return items
+    except sqlite3.Error:
+        return []
+
+
+def _series_response_from_db(symbol: str, range_key: str, interval: str, limit: int, message: str) -> dict:
+    items = _series_items_from_db(symbol, interval, limit)
+    if items:
+        return {
+            "status": "stale", "cache_status": "database_fallback", "symbol": symbol,
+            "range": range_key, "interval": interval, "source": "Twelve Data (snapshot tersimpan)",
+            "fetched_at": items[-1].get("fetched_at"), "latest_at": items[-1].get("datetime"),
+            "item_count": len(items), "items": items,
+            "message": f"Menampilkan histori tersimpan; pembaruan provider gagal. {message}",
+        }
+    status = "not_configured" if not API_KEY else "error"
+    return {
+        "status": status, "cache_status": "empty", "symbol": symbol, "range": range_key,
+        "interval": interval, "source": "Twelve Data", "fetched_at": None,
+        "latest_at": None, "item_count": 0, "items": [], "message": message,
+    }
+
+
+def _series_from_twelvedata(symbol: str, range_key: str = "1D", force: bool = False) -> dict:
+    """Ambil candle historis asli dari endpoint /time_series Twelve Data."""
+    symbol = symbol.upper()
+    if symbol != "SPY":
+        raise ValueError("Grafik seri provider saat ini hanya mendukung SPY.")
+    range_key = range_key.upper()
+    if range_key not in SERIES_RANGES:
+        raise ValueError("Rentang grafik tidak didukung. Gunakan 1D, 5D, 1M, atau 1Y.")
+    interval, outputsize = SERIES_RANGES[range_key]
+    cache_key = f"{symbol}:{range_key}"
+    now = time.time()
+
+    if not API_KEY:
+        return _series_response_from_db(
+            symbol, range_key, interval, outputsize,
+            "TWELVE_DATA_API_KEY belum diisi di file .env. Masukkan API key, lalu restart server.",
+        )
+
+    if not force and cache_key in _series_cache and now - _series_cache_time.get(cache_key, 0) < SPY_SERIES_CACHE_SECONDS:
+        return {**_series_cache[cache_key], "cache_status": "cached"}
+
+    try:
+        response = httpx.get(
+            "https://api.twelvedata.com/time_series",
+            params={
+                "symbol": symbol,
+                "interval": interval,
+                "outputsize": outputsize,
+                "order": "asc",
+                "apikey": API_KEY,
+            },
+            timeout=15.0,
+            headers={"User-Agent": "WealthPilot/0.4.1 personal-dashboard"},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ValueError("Format histori harga dari provider tidak dikenali.")
+        if data.get("status") == "error" or data.get("code"):
+            message = data.get("message") or data.get("description") or "Provider menolak permintaan histori harga."
+            return _series_response_from_db(symbol, range_key, interval, outputsize, message)
+        values = data.get("values")
+        if not isinstance(values, list) or not values:
+            return _series_response_from_db(
+                symbol, range_key, interval, outputsize,
+                "Provider tidak mengembalikan candle untuk rentang ini. Periksa paket, kuota, dan izin data.",
+            )
+
+        items = []
+        fetched_at = now_iso()
+        for point in values:
+            if not isinstance(point, dict) or not point.get("datetime"):
+                continue
+            close = _to_float(point.get("close"))
+            if close is None or close <= 0:
+                continue
+            items.append({
+                "symbol": symbol,
+                "bar_interval": interval,
+                "datetime": str(point["datetime"]),
+                "open": _to_float(point.get("open")),
+                "high": _to_float(point.get("high")),
+                "low": _to_float(point.get("low")),
+                "close": close,
+                "price": close,
+                "volume": _to_float(point.get("volume")),
+                "source": "Twelve Data",
+                "fetched_at": fetched_at,
+            })
+        # Pastikan garis dibaca dari waktu paling lama ke waktu paling baru
+        # karena urutan respons provider bisa berbeda menurut endpoint/plan.
+        items.sort(key=lambda item: item["datetime"])
+        if not items:
+            return _series_response_from_db(symbol, range_key, interval, outputsize, "Tidak ada candle valid dari provider.")
+
+        with connect() as db:
+            db.executemany(
+                """INSERT INTO market_bars(symbol, bar_interval, datetime, open, high, low, close, volume, source, fetched_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(symbol, bar_interval, datetime) DO UPDATE SET
+                       open=excluded.open, high=excluded.high, low=excluded.low,
+                       close=excluded.close, volume=excluded.volume,
+                       source=excluded.source, fetched_at=excluded.fetched_at""",
+                [
+                    (symbol, interval, item["datetime"], item["open"], item["high"], item["low"],
+                     item["close"], item["volume"], item["source"], fetched_at)
+                    for item in items
+                ],
+            )
+            # Jaga database tetap ringan; pertahankan candle terbaru per interval.
+            db.execute(
+                "DELETE FROM market_bars WHERE symbol=? AND bar_interval=? AND datetime NOT IN "
+                "(SELECT datetime FROM market_bars WHERE symbol=? AND bar_interval=? ORDER BY datetime DESC LIMIT 2000)",
+                (symbol, interval, symbol, interval),
+            )
+
+        result = {
+            "status": "ok", "cache_status": "fresh", "symbol": symbol,
+            "range": range_key, "interval": interval,
+            "source": "Twelve Data · time_series", "fetched_at": fetched_at,
+            "latest_at": items[-1]["datetime"], "item_count": len(items),
+            "meta": data.get("meta") or {}, "items": items, "message": None,
+            "note": "Timestamp adalah waktu pembukaan candle menurut zona waktu bursa dari provider; data live atau tertunda mengikuti paket dan lisensi API.",
+        }
+        _series_cache[cache_key] = result
+        _series_cache_time[cache_key] = now
+        return result
+    except (httpx.HTTPError, ValueError, TypeError) as exc:
+        return _series_response_from_db(symbol, range_key, interval, outputsize, f"Gagal mengambil histori: {exc}")
 
 
 def _to_float(value):
@@ -319,10 +495,10 @@ def latest_gold_rates() -> Optional[dict]:
 
 
 @app.get("/api/market")
-def get_market():
+def get_market(force: bool = False):
     gold = latest_gold_rates()
-    spy = _quote_from_twelvedata("SPY", SPY_CACHE_SECONDS)
-    fx = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS)
+    spy = _quote_from_twelvedata("SPY", SPY_CACHE_SECONDS, force=force)
+    fx = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS, force=force)
     if fx.get("status") in ("ok", "stale") and fx.get("price"):
         fx_rate = fx["price"]
     else:
@@ -399,6 +575,18 @@ def gold_history(limit: int = 60):
     with connect() as db:
         rows = db.execute("SELECT * FROM pegadaian_rates ORDER BY captured_at DESC, id DESC LIMIT ?", (limit,)).fetchall()
     return {"items": [dict(r) for r in reversed(rows)]}
+
+
+@app.get("/api/market/series/{symbol}")
+def market_series(symbol: str, range: str = "1D", force: bool = False):
+    """Grafik candle historis dari sumber provider, bukan hanya snapshot lokal quote."""
+    symbol = symbol.upper()
+    range_key = range.upper()
+    if symbol != "SPY":
+        raise HTTPException(status_code=400, detail="Seri provider saat ini hanya tersedia untuk SPY.")
+    if range_key not in SERIES_RANGES:
+        raise HTTPException(status_code=400, detail="Rentang grafik harus 1D, 5D, 1M, atau 1Y.")
+    return _series_from_twelvedata(symbol, range_key, force=force)
 
 
 @app.get("/api/market/history/{symbol:path}")
@@ -748,10 +936,10 @@ def delete_transaction(transaction_id: int):
 
 
 @app.get("/api/overview")
-def overview():
+def overview(force_market: bool = False):
     gold = latest_gold_rates()
-    spy = _quote_from_twelvedata("SPY", SPY_CACHE_SECONDS)
-    fx = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS)
+    spy = _quote_from_twelvedata("SPY", SPY_CACHE_SECONDS, force=force_market)
+    fx = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS, force=force_market)
     with connect() as db:
         txs = _read_transactions(db)
         goals = [dict(r) for r in db.execute("SELECT * FROM goals ORDER BY id ASC").fetchall()]
@@ -858,7 +1046,7 @@ def export_transactions_csv():
 @app.get("/api/export/backup.json")
 def export_backup_json():
     """Ekspor cadangan data aplikasi tanpa API key atau kredensial provider."""
-    tables = ("transactions", "goals", "pegadaian_rates", "market_snapshots")
+    tables = ("transactions", "goals", "pegadaian_rates", "market_snapshots", "market_bars")
     payload = {
         "application": "WealthPilot",
         "backup_version": 1,
@@ -868,7 +1056,9 @@ def export_backup_json():
     }
     with connect() as db:
         for table in tables:
-            rows = db.execute(f"SELECT * FROM {table} ORDER BY id ASC").fetchall()
+            # Tabel market_bars menggunakan kunci primer gabungan, bukan kolom id.
+            ordering = "datetime ASC" if table == "market_bars" else "id ASC"
+            rows = db.execute(f"SELECT * FROM {table} ORDER BY {ordering}").fetchall()
             payload["tables"][table] = [dict(row) for row in rows]
     content = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
     filename = f"wealthpilot-cadangan-{datetime.now(timezone.utc).strftime('%Y%m%d')}.json"
@@ -884,6 +1074,8 @@ def health():
     return {
         "status": "ok", "app": "WealthPilot", "db": str(DB_PATH.name),
         "twelve_data_configured": bool(API_KEY),
+        "market_quote_interval": SPY_QUOTE_INTERVAL,
+        "series_cache_seconds": SPY_SERIES_CACHE_SECONDS,
         "gold_rate_configured": latest_gold_rates() is not None,
         "timestamp": now_iso(),
     }

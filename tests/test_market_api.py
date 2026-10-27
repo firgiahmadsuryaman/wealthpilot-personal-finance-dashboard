@@ -17,6 +17,8 @@ class MarketApiTests(unittest.TestCase):
         self.db_patch.start()
         main._quote_cache.clear()
         main._quote_cache_time.clear()
+        main._series_cache.clear()
+        main._series_cache_time.clear()
         self.client_context = TestClient(main.app)
         self.client = self.client_context.__enter__()
 
@@ -26,6 +28,8 @@ class MarketApiTests(unittest.TestCase):
         self.temp_dir.cleanup()
         main._quote_cache.clear()
         main._quote_cache_time.clear()
+        main._series_cache.clear()
+        main._series_cache_time.clear()
 
     def test_gold_price_001g_normalizes_to_per_gram(self):
         response = self.client.post("/api/market/pegadaian", json={
@@ -96,10 +100,11 @@ class MarketApiTests(unittest.TestCase):
         response = Mock()
         response.raise_for_status.return_value = None
         response.json.return_value = payload
-        with patch.object(main, "API_KEY", "test-key"), patch.object(main.httpx, "get", return_value=response):
+        with patch.object(main, "API_KEY", "test-key"), patch.object(main.httpx, "get", return_value=response) as get:
             quote = main._quote_from_twelvedata("SPY", 30)
         self.assertEqual(quote["status"], "ok")
         self.assertEqual(quote["price"], 550.25)
+        self.assertEqual(get.call_args.kwargs["params"]["interval"], "1min")
         self.assertNotEqual(quote["timestamp"], "2026-10-28")
         with main.connect() as db:
             row = db.execute("SELECT * FROM market_snapshots WHERE symbol='SPY'").fetchone()
@@ -112,6 +117,55 @@ class MarketApiTests(unittest.TestCase):
         response = self.client.get("/api/market/history/USD/IDR?limit=10")
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["items"], [])
+
+    def test_series_endpoint_returns_real_provider_candles_and_persists_history(self):
+        payload = {
+            "meta": {"symbol": "SPY", "interval": "1min", "currency": "USD", "exchange_timezone": "America/New_York"},
+            "values": [
+                {"datetime": "2026-10-28 10:02:00", "open": "650.1", "high": "650.5", "low": "649.9", "close": "650.4", "volume": "1200"},
+                {"datetime": "2026-10-28 10:01:00", "open": "649.8", "high": "650.2", "low": "649.7", "close": "650.1", "volume": "1400"},
+            ],
+            "status": "ok",
+        }
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = payload
+        with patch.object(main, "API_KEY", "test-key"), patch.object(main.httpx, "get", return_value=response) as get:
+            result = self.client.get("/api/market/series/SPY?range=1D&force=true").json()
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["interval"], "1min")
+        self.assertEqual(result["item_count"], 2)
+        self.assertEqual(result["items"][0]["datetime"], "2026-10-28 10:01:00")
+        self.assertEqual(result["items"][0]["price"], 650.1)
+        self.assertEqual(result["items"][-1]["price"], 650.4)
+        self.assertTrue(get.call_args.args[0].endswith("/time_series"))
+        self.assertEqual(get.call_args.kwargs["params"]["interval"], "1min")
+        with main.connect() as db:
+            rows = db.execute("SELECT * FROM market_bars WHERE symbol='SPY' AND bar_interval='1min'").fetchall()
+        self.assertEqual(len(rows), 2)
+
+    def test_series_endpoint_does_not_invent_data_without_api_key(self):
+        with patch.object(main, "API_KEY", ""):
+            result = self.client.get("/api/market/series/SPY?range=1D").json()
+        self.assertEqual(result["status"], "not_configured")
+        self.assertEqual(result["items"], [])
+        self.assertIn("TWELVE_DATA_API_KEY", result["message"])
+
+    def test_series_endpoint_uses_persisted_bars_as_explicitly_stale_fallback(self):
+        with main.connect() as db:
+            db.execute(
+                "INSERT INTO market_bars(symbol, bar_interval, datetime, open, high, low, close, volume, source, fetched_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                ("SPY", "1min", "2026-10-28 10:00:00", 649.0, 650.0, 648.0, 649.5, 100, "Twelve Data", "2026-10-28T14:00:00+00:00"),
+            )
+        with patch.object(main, "API_KEY", "test-key"), patch.object(main.httpx, "get", side_effect=httpx.ConnectError("offline")):
+            result = self.client.get("/api/market/series/SPY?range=1D&force=true").json()
+        self.assertEqual(result["status"], "stale")
+        self.assertEqual(result["items"][0]["price"], 649.5)
+        self.assertIn("pembaruan provider gagal", result["message"])
+
+    def test_invalid_series_range_is_rejected(self):
+        response = self.client.get("/api/market/series/SPY?range=3H")
+        self.assertEqual(response.status_code, 400)
 
     def test_provider_error_falls_back_to_marked_stale_snapshot(self):
         with main.connect() as db:
