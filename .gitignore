@@ -1,0 +1,24 @@
+# Environment and credentials
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local financial data and runtime logs
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.log
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
