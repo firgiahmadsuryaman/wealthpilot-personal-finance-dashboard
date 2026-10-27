@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=0.4.1" />
 </head>
 <body>
   <div class="app-shell">
@@ -84,8 +84,21 @@
         <section class="page-view" id="page-market">
           <div class="page-heading"><div><div class="eyebrow">DATA PASAR</div><h1>Market monitor</h1><p>Perubahan harga berdasarkan sumber yang dipilih, lengkap dengan timestamp.</p></div><div class="heading-actions"><button class="btn btn-secondary" id="refreshMarketBtn">↻ Refresh quote</button><button class="btn btn-primary" data-open="goldRateModal">＋ Sync harga Pegadaian</button></div></div>
           <div class="notice notice-warning"><span class="notice-icon">!</span><div><b>Perbedaan frekuensi pembaruan</b><p>Harga Tabungan Emas Pegadaian mengikuti pembaruan Pegadaian dan tidak dijamin berubah tiap detik; SPY diperbarui berdasarkan kuota serta timestamp dari penyedia market-data.</p></div></div>
-          <div class="content-grid two-col"><article class="panel"><div class="panel-heading"><div><h2>Riwayat harga jual kembali Pegadaian</h2><p>Grafik memakai snapshot harga yang benar-benar dicatat.</p></div></div><canvas id="goldHistoryChart" height="220"></canvas><div id="goldHistoryEmpty" class="empty-hint">Belum ada riwayat. Simpan pembaruan harga dari Tring! pada beberapa waktu untuk membentuk grafik.</div></article><article class="panel"><div class="panel-heading"><div><h2>Riwayat quote SPY</h2><p>Snapshot terbentuk setelah API terhubung.</p></div></div><canvas id="spyHistoryChart" height="220"></canvas><div id="spyHistoryEmpty" class="empty-hint">Belum ada quote tersimpan. Isi API key market-data yang valid terlebih dahulu.</div></article></div>
-          <article class="panel"><div class="panel-heading"><div><h2>Detail sumber data</h2><p>Transparansi adalah bagian dari perhitungan yang benar.</p></div></div><div class="source-list"><div class="source-row"><div class="source-badge gold-brand">Au</div><div class="source-info"><b>Tabungan Emas Pegadaian</b><p>Harga beli nasabah dan harga jual kembali harus sama dengan yang tampil di Tring! by Pegadaian.</p><small>Sumber resmi Pegadaian: <a href="https://pegadaian.co.id/harga-emas" target="_blank" rel="noreferrer">pegadaian.co.id/harga-emas</a></small></div><span class="pill pill-neutral" id="goldSourceStatus">Manual sync</span></div><div class="source-row"><div class="source-badge spy-brand">SPY</div><div class="source-info"><b>Twelve Data</b><p>Harga quote pasar SPY dan USD/IDR. Pastikan plan dan lisensi mengizinkan data ditampilkan di dashboard.</p><small><a href="https://twelvedata.com/docs" target="_blank" rel="noreferrer">Dokumentasi quote API</a></small></div><span class="pill pill-neutral" id="spySourceStatus">Belum tersambung</span></div></div></article>
+          <div class="content-grid two-col">
+            <article class="panel">
+              <div class="panel-heading"><div><h2>Riwayat harga jual kembali Pegadaian</h2><p>Grafik memakai hanya snapshot yang dicatat dari harga Tabungan Emas di Tring!.</p></div><span class="pill pill-neutral" id="goldChartStatus">Menunggu snapshot</span></div>
+              <canvas id="goldHistoryChart" height="220"></canvas>
+              <div id="goldHistoryEmpty" class="empty-hint">Belum ada histori harga dari Tring!. Masukkan harga beli dan jual kembali yang terlihat di aplikasi Pegadaian.</div>
+            </article>
+            <article class="panel">
+              <div class="panel-heading chart-heading"><div><h2>Grafik harga SPY</h2><p>Candle historis asli dari Twelve Data; waktu candle mengikuti zona waktu bursa.</p></div><div class="chart-tools"><label for="spyChartRange">Rentang</label><select id="spyChartRange"><option value="1D">1 hari · 1 menit</option><option value="5D">5 hari · 5 menit</option><option value="1M">1 bulan · harian</option><option value="1Y">1 tahun · harian</option></select><span class="pill pill-neutral" id="spyChartStatus">Menunggu data provider</span></div></div>
+              <div class="chart-summary" aria-live="polite"><span id="spyRangeChange" class="asset-delta">Perubahan rentang: —</span><span id="spyLastClose" class="chart-last-value">Close candle terakhir: —</span></div>
+              <canvas id="spyHistoryChart" height="220"></canvas>
+              <div id="spyChartMessage" class="chart-message" aria-live="polite">Menunggu respons dari sumber harga.</div>
+              <div id="spyHistoryEmpty" class="empty-hint">Grafik belum tersedia. Isi API key Twelve Data, pastikan paket mengizinkan data SPY, lalu refresh grafik.</div>
+            </article>
+          </div>
+          <article class="panel"><div class="panel-heading"><div><h2>Detail sumber data</h2><p>Transparansi adalah bagian dari perhitungan yang benar.</p></div></div><div class="source-list"><div class="source-row"><div class="source-badge gold-brand">Au</div><div class="source-info"><b>Tabungan Emas Pegadaian</b><p>Harga beli nasabah dan harga jual kembali harus sama dengan yang tampil di Tring! by Pegadaian.</p><small>Sumber resmi Pegadaian: <a href="https://pegadaian.co.id/harga-emas" target="_blank" rel="noreferrer">pegadaian.co.id/harga-emas</a></small></div><span class="pill pill-neutral" id="goldSourceStatus">Manual sync</span></div><div class="source-row"><div class="source-badge spy-brand">SPY</div><div class="source-info"><b>Twelve Data</b><p>Quote intraday dan candle historis SPY serta kurs USD/IDR. Waktu real-time/tertunda bergantung pada plan dan lisensi; status koneksi bukan jaminan streaming tick-by-tick.</p><small><a href="https://twelvedata.com/docs" target="_blank" rel="noreferrer">Dokumentasi quote API</a></small></div><span class="pill pill-neutral" id="spySourceStatus">Belum tersambung</span></div></div></article>
         </section>
 
         <section class="page-view" id="page-transactions">
@@ -134,6 +147,6 @@
   <div class="modal-backdrop" id="goalModal" aria-hidden="true"><div class="modal-card modal-narrow"><div class="modal-head"><div><div class="eyebrow">RENCANA KEUANGAN</div><h2 id="goalModalTitle">Buat target</h2><p id="goalModalSubtitle">Tambahkan tujuan dan progres awal.</p></div><button class="icon-close" data-close="goalModal" aria-label="Tutup">×</button></div><form id="goalForm"><input id="goalId" name="goal_id" type="hidden" value="" /><div class="form-field"><label for="goalName">Nama target</label><input id="goalName" name="name" required maxlength="100" placeholder="Contoh: Dana pendidikan, kendaraan, atau target pribadi" /></div><div class="form-field"><label for="goalTarget">Target nominal (IDR)</label><input id="goalTarget" name="target_idr" required type="number" min="1" step="any" placeholder="Contoh: 100000000" /></div><div class="form-field"><label for="goalCurrent">Sudah terkumpul (IDR)</label><input id="goalCurrent" name="current_saved_idr" type="number" min="0" step="any" value="0" /></div><div class="form-field"><label for="goalDate">Tanggal target</label><input id="goalDate" name="target_date" type="date" /></div><div class="form-field"><label for="goalNotes">Catatan</label><input id="goalNotes" name="notes" maxlength="500" placeholder="Opsional" /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close="goalModal">Batal</button><button type="submit" class="btn btn-primary" id="saveGoalBtn">Simpan target</button></div></form></div></div>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=0.4.1"></script>
 </body>
 </html>

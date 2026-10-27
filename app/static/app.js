@@ -3,6 +3,7 @@ const state = {
   transactions: [],
   goldHistory: [],
   spyHistory: [],
+  spyChartRange: '1D',
   market: null,
 };
 
@@ -164,7 +165,7 @@ function renderMarket(market) {
       : 'Waktu quote tidak disediakan provider';
     setText('spyUpdated', timeLabel);
     const quoteIsStale = spy.status === 'stale';
-    setText('spyStatus', quoteIsStale ? 'Data tersimpan · basi' : (spy.market_open === true ? 'Pasar buka' : spy.market_open === false ? 'Pasar tutup · quote terakhir' : 'Quote tersedia'));
+    setText('spyStatus', quoteIsStale ? 'Data tersimpan · basi' : (spy.market_open === true ? 'Pasar buka · quote provider' : spy.market_open === false ? 'Pasar tutup · quote terakhir' : 'Quote provider tersedia'));
     $('spyStatus').className = quoteIsStale ? 'pill pill-neutral' : 'pill pill-good';
     setText('settingSpyStatus', quoteIsStale ? 'Quote lama · provider gagal' : 'Quote tersedia');
     $('spySourceStatus').className = quoteIsStale ? 'pill pill-neutral' : 'pill pill-good';
@@ -315,38 +316,110 @@ function renderCashRows(items) {
   const arr=items.filter(t=>['DEPOSIT','WITHDRAW','DIVIDEND'].includes(t.tx_type));
   $('cashRows').innerHTML = arr.length ? arr.map(t=>`<tr><td>${escapeHtml(fmtDate(t.occurred_at))}</td><td>${txBadge(t.tx_type)}</td><td>${fmtIDR(t.amount_idr)}</td><td>${escapeHtml(t.memo||'—')}</td></tr>`).join('') : `<tr><td colspan="4"><div class="table-empty">Belum ada setoran, penarikan, atau dividen.</div></td></tr>`;
 }
-function drawLineChart(canvasId, items, valueKey, color='#46d6b0') {
+function chartTickLabel(item, rangeKey='1D') {
+  const raw = String(item.datetime || item.captured_at || item.timestamp || '');
+  // Waktu candle saham diberikan dalam waktu lokal bursa oleh provider; jangan menggesernya ke zona waktu browser.
+  const intraday = raw.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+  if (intraday) return rangeKey === '1D' ? intraday[2] : `${intraday[1].slice(5)} ${intraday[2]}`;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? raw.slice(0, 10) : new Intl.DateTimeFormat('id-ID', {day:'2-digit',month:'short'}).format(d);
+}
+function drawLineChart(canvasId, items, valueKey, color='#46d6b0', rangeKey='1D') {
   const canvas=$(canvasId); if (!canvas) return;
   const parent=canvas.parentElement; const ratio=window.devicePixelRatio||1;
-  const width=Math.max(240,canvas.clientWidth||parent.clientWidth||400); const height=220;
+  const width=Math.max(260,canvas.clientWidth||parent.clientWidth||400); const height=220;
   canvas.width=width*ratio; canvas.height=height*ratio; canvas.style.height=`${height}px`;
-  const ctx=canvas.getContext('2d'); ctx.scale(ratio,ratio); ctx.clearRect(0,0,width,height);
-  const m={l:8,r:8,t:15,b:25}; const plotW=width-m.l-m.r; const plotH=height-m.t-m.b;
-  for(let i=0;i<4;i++){const y=m.t+i*plotH/3;ctx.beginPath();ctx.strokeStyle='rgba(100,133,164,.15)';ctx.lineWidth=1;ctx.moveTo(m.l,y);ctx.lineTo(width-m.r,y);ctx.stroke();}
-  const vals=items.map(i=>Number(i[valueKey])).filter(Number.isFinite);
-  if(vals.length<2){ctx.fillStyle='#6a839d';ctx.font='11px DM Sans';ctx.textAlign='center';ctx.fillText('Kumpulkan lebih banyak snapshot untuk melihat grafik',width/2,height/2);return;}
-  const min=Math.min(...vals),max=Math.max(...vals),range=(max-min)||Math.max(Math.abs(max)*.01,1);
-  const points=items.map((it,i)=>({x:m.l+(i/(items.length-1))*plotW,y:m.t+(1-(Number(it[valueKey])-min)/range)*plotH}));
-  const grd=ctx.createLinearGradient(0,m.t,0,height-m.b);grd.addColorStop(0,color+'45');grd.addColorStop(1,color+'00');
+  const ctx=canvas.getContext('2d'); ctx.setTransform(ratio,0,0,ratio,0,0); ctx.clearRect(0,0,width,height);
+  const valid=(items||[]).map(item=>({...item,_value:Number(item[valueKey])})).filter(item=>Number.isFinite(item._value)).sort((a,b)=>String(a.datetime||a.captured_at||'').localeCompare(String(b.datetime||b.captured_at||'')));
+  const m={l:54,r:14,t:16,b:32}; const plotW=width-m.l-m.r; const plotH=height-m.t-m.b;
+  if(valid.length<2){ctx.fillStyle='#6a839d';ctx.font='11px DM Sans';ctx.textAlign='center';ctx.fillText('Belum cukup titik harga untuk menggambar garis',width/2,height/2);return;}
+  const vals=valid.map(i=>i._value); const min=Math.min(...vals),max=Math.max(...vals),range=(max-min)||Math.max(Math.abs(max)*.001,0.01);
+  for(let i=0;i<4;i++){
+    const y=m.t+i*plotH/3; const v=max-i*range/3;
+    ctx.beginPath();ctx.strokeStyle='rgba(100,133,164,.17)';ctx.lineWidth=1;ctx.moveTo(m.l,y);ctx.lineTo(width-m.r,y);ctx.stroke();
+    ctx.fillStyle='#7890a9';ctx.font='9px DM Sans';ctx.textAlign='right';ctx.fillText(fmtNum(v, v>=1000?0:2),m.l-7,y+3);
+  }
+  const points=valid.map((it,i)=>({x:m.l+(i/(valid.length-1))*plotW,y:m.t+(1-(it._value-min)/range)*plotH}));
+  const grd=ctx.createLinearGradient(0,m.t,0,height-m.b);grd.addColorStop(0,color+'35');grd.addColorStop(1,color+'00');
   ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.lineTo(points[points.length-1].x,height-m.b);ctx.lineTo(points[0].x,height-m.b);ctx.closePath();ctx.fillStyle=grd;ctx.fill();
   ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.strokeStyle=color;ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();
   const last=points[points.length-1];ctx.beginPath();ctx.arc(last.x,last.y,3.5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
-  ctx.fillStyle='#7890a9';ctx.font='9px DM Sans';ctx.textAlign='left';ctx.fillText(fmtNum(min,2),m.l,height-7);ctx.textAlign='right';ctx.fillText(fmtNum(max,2),width-m.r,height-7);
+  [0,Math.floor((valid.length-1)/2),valid.length-1].forEach((index,i)=>{
+    const x=points[index].x;ctx.fillStyle='#7890a9';ctx.font='9px DM Sans';ctx.textAlign=i===0?'left':i===2?'right':'center';
+    ctx.fillText(chartTickLabel(valid[index],rangeKey),x,height-9);
+  });
 }
-async function loadHistories() {
-  try {
-    const [gold,spy]=await Promise.all([api('/api/market/pegadaian/history?limit=120'),api('/api/market/history/SPY?limit=120')]);
-    state.goldHistory=gold.items||[];state.spyHistory=spy.items||[];
-    const gh=state.goldHistory;
-    $('goldHistoryEmpty').classList.toggle('hidden',gh.length>=2);
-    drawLineChart('goldHistoryChart',gh,'customer_sell_idr_g','#f1bd4c');
-    $('spyHistoryEmpty').classList.toggle('hidden',(state.spyHistory||[]).length>=2);
-    drawLineChart('spyHistoryChart',state.spyHistory||[],'price','#479cff');
-  } catch(e) { console.warn(e); }
+function renderGoldHistory(items) {
+  state.goldHistory=items||[];
+  const enough=state.goldHistory.length>=2;
+  $('goldHistoryEmpty').classList.toggle('hidden',enough);
+  setText('goldHistoryEmpty', state.goldHistory.length===0
+    ? 'Belum ada histori harga dari Tring!. Masukkan harga beli dan jual kembali yang terlihat di aplikasi Pegadaian.'
+    : 'Baru ada satu snapshot harga dari Tring!. Simpan pembaruan di waktu berbeda agar perubahan harga dapat digambar.');
+  setText('goldChartStatus',state.goldHistory.length===0?'Belum ada snapshot':`${state.goldHistory.length} snapshot · input Tring!`);
+  $('goldChartStatus').className=state.goldHistory.length>=2?'pill pill-good':'pill pill-neutral';
+  drawLineChart('goldHistoryChart',state.goldHistory,'customer_sell_idr_g','#f1bd4c','1M');
 }
-async function refreshAll(showToast=false) {
+function renderSpySeries(series) {
+  const items=series?.items||[];
+  state.spyHistory=items;
+  state.spyChartRange=series?.range||$('spyChartRange')?.value||'1D';
+  const enough=items.length>=2;
+  $('spyHistoryEmpty').classList.toggle('hidden',enough);
+  if(series?.status==='not_configured') setText('spyHistoryEmpty',series.message||'API key Twelve Data belum diisi di .env.');
+  else if(series?.status==='stale') setText('spyHistoryEmpty','Histori tersimpan ditampilkan di bawah; provider belum berhasil memberikan pembaruan terbaru.');
+  else if(series?.status==='error') setText('spyHistoryEmpty',series.message||'Provider belum mengembalikan histori harga.');
+  else setText('spyHistoryEmpty',items.length===0?'Tidak ada candle tersedia untuk rentang ini. Periksa API key, paket data, kuota, dan izin SPY.':'Belum cukup candle untuk membentuk grafik.');
+
+  if(series?.status==='ok') {
+    const cacheLabel=series.cache_status==='cached'?'cache server':'respons provider';
+    setText('spyChartStatus',`${items.length} candle · ${series.interval} · ${cacheLabel}`);
+    $('spyChartStatus').className='pill pill-good';
+    setText('spyChartMessage',series.note||`Data candle diterima dari ${series.source||'provider'}. Periksa waktu candle terakhir di bawah; status respons bukan jaminan data tick-by-tick.`);
+  } else if(series?.status==='stale') {
+    setText('spyChartStatus',`Histori tersimpan · ${items.length} candle`);
+    $('spyChartStatus').className='pill pill-neutral';
+    setText('spyChartMessage',series.message||'Histori berasal dari database lokal dan belum berhasil diperbarui dari provider.');
+  } else {
+    setText('spyChartStatus',series?.status==='not_configured'?'API belum dikonfigurasi':'Histori tidak tersedia');
+    $('spyChartStatus').className='pill pill-neutral';
+    setText('spyChartMessage',series?.message||'Tidak ada data asli yang diterima. Periksa koneksi, API key, kuota, izin simbol SPY, dan lisensi data.');
+  }
+
+  const valid=items.map(item=>({...item,_price:Number(item.price ?? item.close)})).filter(item=>Number.isFinite(item._price)&&item._price>0).sort((a,b)=>String(a.datetime||'').localeCompare(String(b.datetime||'')));
+  if(valid.length) {
+    const first=valid[0]._price, last=valid[valid.length-1]._price;
+    const deltaPct=first>0?(last/first-1)*100:null;
+    setText('spyRangeChange',deltaPct==null?'Perubahan rentang: —':`Perubahan rentang: ${deltaPct>0?'+':''}${fmtPct(deltaPct)}`);
+    $('spyRangeChange').className=`asset-delta ${deltaPct==null?'':signedClass(deltaPct)}`;
+    setText('spyLastClose',`Close candle terakhir: ${fmtUSD(last)} · ${chartTickLabel(valid[valid.length-1],state.spyChartRange)} waktu bursa`);
+  } else {
+    setText('spyRangeChange','Perubahan rentang: —');
+    $('spyRangeChange').className='asset-delta';
+    setText('spyLastClose','Close candle terakhir: —');
+  }
+  drawLineChart('spyHistoryChart',items,'price','#479cff',state.spyChartRange);
+}
+async function loadHistories(force=false) {
   try {
-    const data=await api('/api/overview');
+    const range=$('spyChartRange')?.value||state.spyChartRange||'1D';
+    const seriesUrl=`/api/market/series/SPY?range=${encodeURIComponent(range)}${force?'&force=true':''}`;
+    const [gold,spy]=await Promise.all([
+      api('/api/market/pegadaian/history?limit=120'),
+      api(seriesUrl),
+    ]);
+    renderGoldHistory(gold.items||[]);
+    renderSpySeries(spy);
+  } catch(e) {
+    console.warn('Gagal memuat histori Market Monitor:',e);
+    setText('spyChartStatus','Gagal memuat histori');
+    setText('spyHistoryEmpty',`Tidak dapat memuat grafik: ${e.message}`);
+    $('spyHistoryEmpty').classList.remove('hidden');
+  }
+}
+async function refreshAll(showToast=false, forceMarket=false) {
+  try {
+    const data=await api(forceMarket?'/api/overview?force_market=true':'/api/overview');
     state.overview=data;
     state.transactions=data.recent_transactions||[];
     renderMarket(data.market);
@@ -355,8 +428,8 @@ async function refreshAll(showToast=false) {
     await loadTransactions();
     renderCashRows(state.transactionsAll||[]);
     setGlobalStatus(data.market.spy.status==='ok', data.market.spy.status==='ok'?'Sumber pasar tersambung':'Dashboard aktif · cek sumber data',`Terakhir dicek ${fmtDate(data.generated_at)}`);
-    await loadHistories();
-    if(showToast) toast('Dashboard dan sumber data diperbarui.','success');
+    await loadHistories(forceMarket);
+    if(showToast) toast(forceMarket?'Permintaan refresh sumber pasar dikirim. Periksa timestamp dan status sumber.':'Dashboard diperbarui.','success');
   } catch (e) {
     setGlobalStatus(false,'Backend tidak tersedia','Periksa apakah server WealthPilot berjalan.');
     if(showToast)toast(`Gagal memperbarui: ${e.message}`,'error');
@@ -427,8 +500,9 @@ function initEvents() {
   document.querySelectorAll('[data-open]').forEach(btn=>btn.addEventListener('click',()=>openModal(btn.dataset.open)));
   document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>closeModal(btn.dataset.close)));
   document.querySelectorAll('.modal-backdrop').forEach(bg=>bg.addEventListener('click',e=>{if(e.target===bg)closeModal(bg.id)}));
-  $('refreshBtn').addEventListener('click',()=>refreshAll(true));
-  $('refreshMarketBtn').addEventListener('click',()=>refreshAll(true));
+  $('refreshBtn').addEventListener('click',()=>refreshAll(true,true));
+  $('refreshMarketBtn').addEventListener('click',()=>refreshAll(true,true));
+  $('spyChartRange')?.addEventListener('change',()=>loadHistories(true));
   $('addTxTop').addEventListener('click',()=>openModal('transactionModal'));
   $('addTxEmpty')?.addEventListener('click',()=>openModal('transactionModal'));
   $('txType').addEventListener('change',()=>{$('txPrice').dataset.touched='';updateTxFields();});$('txAsset').addEventListener('change',()=>{$('txPrice').dataset.touched='';updateTxFields();});
@@ -516,7 +590,7 @@ async function submitGoal(e) {
   finally{button.disabled=false;}
 }
 
-window.addEventListener('resize',()=>{if(state.goldHistory.length)drawLineChart('goldHistoryChart',state.goldHistory,'customer_sell_idr_g','#f1bd4c');if(state.spyHistory.length)drawLineChart('spyHistoryChart',state.spyHistory,'price','#479cff');});
+window.addEventListener('resize',()=>{if(state.goldHistory.length)drawLineChart('goldHistoryChart',state.goldHistory,'customer_sell_idr_g','#f1bd4c','1M');if(state.spyHistory.length)drawLineChart('spyHistoryChart',state.spyHistory,'price','#479cff',state.spyChartRange);});
 initEvents();
 $('txDate').value=localDatetimeInput();$('goldCapturedAt').value=localDatetimeInput();updateTxFields();
 refreshAll();

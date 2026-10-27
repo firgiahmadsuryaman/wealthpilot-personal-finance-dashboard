@@ -9,3 +9,9 @@
 .goal-actions{display:flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0}.edit-button{border:1px solid #29445f;background:#102238;color:#9bcaff;border-radius:6px;font-size:10px;padding:5px 7px}.edit-button:hover{background:#173451;color:#d8eaff}.edit-button:focus-visible,.delete-button:focus-visible{outline:2px solid #64a7ff;outline-offset:2px}
 
 .tx-actions{display:flex;align-items:center;gap:5px;white-space:nowrap}.tx-actions .edit-button,.tx-actions .tx-delete{font-size:10px}.tx-actions .tx-delete{padding:5px 7px;border:1px solid #583245;border-radius:6px;background:#281725}.tx-actions .tx-delete:hover{background:#3b1d2d}
+
+/* Market-monitor chart controls */
+.chart-heading{align-items:flex-start;gap:12px}.chart-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.chart-tools label{font-size:10px;color:#7e94ad}.chart-tools select{max-width:160px;background:#0e2034;border:1px solid #28415b;color:#c5d6e8;border-radius:8px;padding:7px 9px;font-size:10px;outline:none}.chart-tools select:focus{border-color:#4b9cff;box-shadow:0 0 0 3px rgba(75,156,255,.1)}@media(max-width:800px){.chart-heading{flex-direction:column;align-items:stretch}.chart-tools{justify-content:flex-start}.chart-tools select{max-width:none}}
+
+/* Market-monitor diagnostics and period metrics */
+.chart-summary{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:10px 0 2px}.chart-summary .asset-delta{font-size:12px;font-weight:700}.chart-last-value{font-size:10px;color:#8ca3bb}.chart-message{margin-top:10px;padding:9px 11px;background:rgba(16,34,54,.72);border:1px solid #233c55;border-radius:8px;color:#92a8c0;font-size:10px;line-height:1.6;overflow-wrap:anywhere}.chart-message:empty{display:none}@media(max-width:560px){.chart-summary{align-items:flex-start;flex-direction:column}.chart-last-value{line-height:1.6}.chart-message{font-size:9px}}
