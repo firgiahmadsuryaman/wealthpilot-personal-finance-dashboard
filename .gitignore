@@ -25,3 +25,7 @@ data/*.sqlite3-*
 Thumbs.db
 .vscode/
 .idea/
+
+# Export pribadi (jangan masuk repository publik)
+wealthpilot-transaksi.csv
+wealthpilot-cadangan-*.json
