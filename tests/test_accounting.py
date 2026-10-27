@@ -34,6 +34,20 @@ class PortfolioAccountingTests(unittest.TestCase):
         self.assertIsNone(p['portfolio_value_idr'])
         self.assertIsNone(p['total_pnl_idr'])
 
+
+    def test_total_pnl_matches_realized_plus_unrealized_pnl(self):
+        transactions = [
+            tx(1, 'DEPOSIT', 'CASH', amount_idr=10_000_000),
+            tx(2, 'BUY', 'GOLD', quantity=2, unit_price=1_500_000),
+            tx(3, 'BUY', 'GOLD', quantity=2, unit_price=1_700_000),
+            tx(4, 'SELL', 'GOLD', quantity=1, unit_price=1_800_000, fee_idr=1_000),
+        ]
+        p = _calculate_portfolio(transactions, self.gold, self.no_spy, None)
+        self.assertEqual(p['total_pnl_idr'], 799_000)
+        self.assertEqual(p['realized_pnl_idr'], 199_000)
+        self.assertEqual(p['unrealized_pnl_idr'], 600_000)
+        self.assertEqual(p['total_pnl_idr'], p['realized_pnl_idr'] + p['unrealized_pnl_idr'])
+
     def test_sell_uses_weighted_average_basis(self):
         transactions = [
             tx(1, 'DEPOSIT', 'CASH', amount_idr=10_000_000),
