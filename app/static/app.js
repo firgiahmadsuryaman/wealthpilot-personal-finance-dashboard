@@ -324,6 +324,12 @@ function chartTickLabel(item, rangeKey='1D') {
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? raw.slice(0, 10) : new Intl.DateTimeFormat('id-ID', {day:'2-digit',month:'short'}).format(d);
 }
+function chartTimestampLabel(item, rangeKey='1D') {
+  const raw=String(item.datetime||item.captured_at||item.timestamp||'').replace('T',' ');
+  const match=raw.match(/^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?/);
+  if(!match)return raw||'waktu tidak disediakan';
+  return rangeKey==='1M'||rangeKey==='1Y'||!match[2]?match[1]:`${match[1]} ${match[2]}`;
+}
 function drawLineChart(canvasId, items, valueKey, color='#46d6b0', rangeKey='1D') {
   const canvas=$(canvasId); if (!canvas) return;
   const parent=canvas.parentElement; const ratio=window.devicePixelRatio||1;
@@ -392,7 +398,7 @@ function renderSpySeries(series) {
     const deltaPct=first>0?(last/first-1)*100:null;
     setText('spyRangeChange',deltaPct==null?'Perubahan rentang: —':`Perubahan rentang: ${deltaPct>0?'+':''}${fmtPct(deltaPct)}`);
     $('spyRangeChange').className=`asset-delta ${deltaPct==null?'':signedClass(deltaPct)}`;
-    setText('spyLastClose',`Close candle terakhir: ${fmtUSD(last)} · ${chartTickLabel(valid[valid.length-1],state.spyChartRange)} waktu bursa`);
+    setText('spyLastClose',`Close candle terakhir: ${fmtUSD(last)} · ${chartTimestampLabel(valid[valid.length-1],state.spyChartRange)} waktu bursa`);
   } else {
     setText('spyRangeChange','Perubahan rentang: —');
     $('spyRangeChange').className='asset-delta';
