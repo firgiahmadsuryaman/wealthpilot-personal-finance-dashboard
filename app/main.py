@@ -30,14 +30,23 @@ USDIDR_CACHE_SECONDS = max(60, int(os.getenv("USDIDR_CACHE_SECONDS", "900")))
 SPY_QUOTE_INTERVAL = os.getenv("SPY_QUOTE_INTERVAL", "1min").strip() or "1min"
 USDIDR_QUOTE_INTERVAL = os.getenv("USDIDR_QUOTE_INTERVAL", "1min").strip() or "1min"
 SPY_SERIES_CACHE_SECONDS = max(60, int(os.getenv("SPY_SERIES_CACHE_SECONDS", "60")))
+GOLD_CACHE_SECONDS = max(15, int(os.getenv("GOLD_CACHE_SECONDS", "30")))
+GOLD_SERIES_CACHE_SECONDS = max(60, int(os.getenv("GOLD_SERIES_CACHE_SECONDS", "60")))
+GOLD_SPOT_URL = "https://standardbullion.com/spot-prices.json"
+GOLD_HISTORY_URL = "https://standardbullion.com/api/v1/market/history"
+TROY_OUNCE_GRAMS = 31.1034768
 
-app = FastAPI(title="WealthPilot", version="0.4.1", description="Personal investment dashboard; local-first MVP")
+app = FastAPI(title="WealthPilot", version="0.5.1", description="Dasbor keuangan dan investasi pribadi; local-first")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static")
 
 _quote_cache: dict[str, dict] = {}
 _quote_cache_time: dict[str, float] = {}
 _series_cache: dict[str, dict] = {}
 _series_cache_time: dict[str, float] = {}
+_gold_raw_cache: dict = {}
+_gold_raw_cache_time: float = 0.0
+_gold_series_cache: dict[str, dict] = {}
+_gold_series_cache_time: dict[str, float] = {}
 
 # Rentang grafik: intraday memakai candle 1 menit atau 5 menit; rentang panjang memakai candle harian.
 SERIES_RANGES = {
@@ -384,7 +393,7 @@ def _series_from_twelvedata(symbol: str, range_key: str = "1D", force: bool = Fa
                 "apikey": API_KEY,
             },
             timeout=15.0,
-            headers={"User-Agent": "WealthPilot/0.4.1 personal-dashboard"},
+            headers={"User-Agent": "WealthPilot/0.5.1 personal-dashboard"},
         )
         response.raise_for_status()
         data = response.json()
@@ -470,6 +479,230 @@ def _to_float(value):
         return None
 
 
+def _parse_timestamp(value) -> Optional[datetime]:
+    """Parse timestamp provider into timezone-aware UTC, returning None if invalid."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _fetch_standard_bullion_quote(force: bool = False) -> dict:
+    """Ambil harga live dealer XAU ask/bid dalam USD per troy ounce."""
+    global _gold_raw_cache, _gold_raw_cache_time
+    now = time.time()
+    if not force and _gold_raw_cache and now - _gold_raw_cache_time < GOLD_CACHE_SECONDS:
+        return {**_gold_raw_cache, "cache_status": "cached"}
+    try:
+        response = httpx.get(
+            GOLD_SPOT_URL,
+            timeout=10.0,
+            headers={"User-Agent": "WealthPilot/0.5.1 personal-dashboard"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("Format respons harga emas tidak dikenali.")
+        metal = next((item for item in payload.get("metals", []) if isinstance(item, dict) and item.get("symbol") == "XAU"), None)
+        if not metal:
+            raise ValueError("Provider tidak mengembalikan quote XAU.")
+        ask = _to_float(metal.get("ask"))
+        bid = _to_float(metal.get("bid"))
+        updated = _parse_timestamp(payload.get("updated"))
+        if ask is None or bid is None or ask <= 0 or bid <= 0 or ask < bid:
+            raise ValueError("Harga ask/bid emas dari provider tidak valid.")
+        if updated is None:
+            raise ValueError("Timestamp harga emas tidak diberikan atau tidak valid.")
+        result = {
+            "status": "ok",
+            "source": str(payload.get("source") or "Standard Bullion"),
+            "source_url": str(payload.get("url") or "https://standardbullion.com"),
+            "attribution": str(payload.get("attribution") or "Data by Standard Bullion — https://standardbullion.com"),
+            "disclaimer": str(payload.get("disclaimer") or "Harga dealer spot indikatif; bukan harga resmi Pegadaian."),
+            "timestamp": updated.isoformat(timespec="seconds"),
+            "ask_usd_oz": ask,
+            "bid_usd_oz": bid,
+            "open_usd_oz": _to_float(metal.get("open")),
+            "change_today": metal.get("changeToday") if isinstance(metal.get("changeToday"), dict) else {},
+            "changes": metal.get("changes") if isinstance(metal.get("changes"), dict) else {},
+            "cache_status": "fresh",
+        }
+        _gold_raw_cache = result
+        _gold_raw_cache_time = now
+        return result
+    except (httpx.HTTPError, ValueError, TypeError) as exc:
+        if _gold_raw_cache:
+            # The cached quote remains a real provider quote, but must be marked stale.
+            return {**_gold_raw_cache, "status": "stale", "cache_status": "stale", "message": f"Provider emas gagal diperbarui: {exc}"}
+        return {
+            "status": "error", "cache_status": "empty", "source": "Standard Bullion",
+            "source_url": "https://standardbullion.com/spot-prices.json", "timestamp": None,
+            "ask_usd_oz": None, "bid_usd_oz": None,
+            "message": f"Tidak dapat mengambil harga emas asli dari Standard Bullion: {exc}",
+            "attribution": "Data by Standard Bullion — https://standardbullion.com",
+        }
+
+
+def _persist_gold_snapshot(symbol: str, price: Optional[float], timestamp: Optional[str], source: str, percent_change: Optional[float] = None) -> None:
+    """Simpan snapshot asli bila timestamp/harga baru; tidak membuat histori duplikat tiap polling."""
+    if price is None or price <= 0 or not timestamp:
+        return
+    try:
+        with connect() as db:
+            existing = db.execute(
+                "SELECT id FROM market_snapshots WHERE symbol=? AND timestamp=? AND price=? LIMIT 1",
+                (symbol, timestamp, price),
+            ).fetchone()
+            if not existing:
+                db.execute(
+                    "INSERT INTO market_snapshots(symbol, price, percent_change, timestamp, source, timestamp_precision) VALUES(?,?,?,?,?,?)",
+                    (symbol, price, percent_change, timestamp, source, "provider_timestamp"),
+                )
+    except sqlite3.Error:
+        # Quote tetap bisa ditampilkan meskipun penyimpanan histori sedang gagal.
+        pass
+
+
+def gold_spot_quote(fx_quote: Optional[dict], force: bool = False) -> dict:
+    """Format bid/ask XAU live menjadi estimasi IDR/gram dengan kurs USD/IDR provider."""
+    raw = _fetch_standard_bullion_quote(force=force)
+    fx_status = (fx_quote or {}).get("status")
+    fx_rate = _to_float((fx_quote or {}).get("price")) if fx_status in ("ok", "stale") else None
+    timestamp = raw.get("timestamp")
+    updated_dt = _parse_timestamp(timestamp)
+    age_seconds = max(0, int((datetime.now(timezone.utc) - updated_dt).total_seconds())) if updated_dt else None
+    freshness = "stale" if raw.get("status") == "stale" or age_seconds is None or age_seconds > 900 else "fresh"
+    ask_usd = _to_float(raw.get("ask_usd_oz"))
+    bid_usd = _to_float(raw.get("bid_usd_oz"))
+    ask_idr = ask_usd * fx_rate / TROY_OUNCE_GRAMS if ask_usd and fx_rate else None
+    bid_idr = bid_usd * fx_rate / TROY_OUNCE_GRAMS if bid_usd and fx_rate else None
+    change_today = raw.get("change_today") if isinstance(raw.get("change_today"), dict) else {}
+    change_pct = _to_float(change_today.get("percent"))
+    quote = {
+        **raw,
+        "symbol": "XAU",
+        "currency": "USD",
+        "unit": "USD per troy ounce",
+        "quote_type": "dealer_spot_bid_ask",
+        "status": "error" if raw.get("status") == "error" else ("stale" if freshness == "stale" else "ok"),
+        "freshness_status": freshness,
+        "age_seconds": age_seconds,
+        "fx_rate_usd_idr": fx_rate,
+        "fx_status": fx_status or "not_configured",
+        "customer_buy_idr_g": ask_idr,
+        "customer_sell_idr_g": bid_idr,
+        "ask_idr_g": ask_idr,
+        "bid_idr_g": bid_idr,
+        "spot_mid_idr_g": (ask_idr + bid_idr) / 2 if ask_idr is not None and bid_idr is not None else None,
+        "buy_idr_per_gram": ask_idr,
+        "sell_idr_per_gram": bid_idr,
+        "quote_unit": "GRAM",
+        # Harga di sini dinormalisasi per gram. Field raw per unit sengaja null agar
+        # formulir transaksi tidak menganggap harga per gram sebagai harga per 0,01 g.
+        "customer_buy_entered": None,
+        "customer_sell_entered": None,
+        "captured_at": timestamp,
+        "sellback_change_pct": change_pct,
+        "change_today_pct": change_pct,
+        "source_url": raw.get("source_url") or "https://standardbullion.com/spot-prices.json",
+        "message": raw.get("message"),
+        "valuation_note": "Harga spot dealer internasional dikonversi ke IDR/gram; bukan harga resmi Pegadaian (bukan harga jual/buyback resmi Pegadaian). Belum termasuk premi produk, spread lokal, pajak, atau biaya.",
+    }
+    if freshness == "stale" and not quote.get("message"):
+        quote["message"] = "Timestamp quote emas sudah lebih dari 15 menit; harga terakhir ditampilkan dan ditandai basi."
+    # The USD ask/bid records are native quotes; the IDR records are estimates converted with the current USD/IDR quote.
+    _persist_gold_snapshot("XAU/USD/ASK", ask_usd, timestamp, "Standard Bullion", change_pct)
+    _persist_gold_snapshot("XAU/USD/BID", bid_usd, timestamp, "Standard Bullion", change_pct)
+    _persist_gold_snapshot("GOLD/IDR_GRAM_ASK", ask_idr, timestamp, "Standard Bullion × USD/IDR", change_pct)
+    _persist_gold_snapshot("GOLD/IDR_GRAM_BID", bid_idr, timestamp, "Standard Bullion × USD/IDR", change_pct)
+    return quote
+
+
+GOLD_SERIES_RANGES = {"1D": "24h", "5D": "7d", "1M": "1m", "1Y": "1y"}
+
+
+def _gold_series_from_db(range_key: str, message: str) -> dict:
+    """Fallback hanya berisi snapshot di dalam rentang yang diminta."""
+    windows = {"1D": timedelta(days=1), "5D": timedelta(days=7), "1M": timedelta(days=31), "1Y": timedelta(days=366)}
+    cutoff = (datetime.now(timezone.utc) - windows.get(range_key, timedelta(days=1))).isoformat(timespec="seconds")
+    with connect() as db:
+        rows = db.execute(
+            "SELECT timestamp, price, source FROM market_snapshots "
+            "WHERE symbol='GOLD/IDR_GRAM_BID' AND timestamp>=? ORDER BY timestamp ASC LIMIT 10000",
+            (cutoff,),
+        ).fetchall()
+    items = [{"datetime": row["timestamp"], "price": float(row["price"]), "source": row["source"]} for row in rows]
+    return {
+        "status": "stale" if items else "error", "cache_status": "database_fallback" if items else "empty",
+        "symbol": "XAU", "range": range_key, "interval": "snapshot",
+        "source": "Snapshot lokal dari Standard Bullion × USD/IDR", "items": items,
+        "item_count": len(items), "latest_at": items[-1]["datetime"] if items else None,
+        "message": f"Histori provider tidak tersedia. {message}" if items else message,
+        "note": "Snapshot IDR/gram adalah quote bid spot yang dikonversi dengan kurs USD/IDR pada saat snapshot.",
+    }
+
+
+def gold_spot_series(range_key: str, fx_quote: Optional[dict], force: bool = False) -> dict:
+    range_key = range_key.upper()
+    if range_key not in GOLD_SERIES_RANGES:
+        raise HTTPException(status_code=400, detail="Rentang grafik emas harus 1D, 5D, 1M, atau 1Y.")
+    fx_status = (fx_quote or {}).get("status")
+    fx_rate = _to_float((fx_quote or {}).get("price")) if fx_status in ("ok", "stale") else None
+    if not fx_rate or fx_rate <= 0:
+        return _gold_series_from_db(range_key, "Kurs USD/IDR tidak tersedia; histori XAU/USD tidak dikonversi ke rupiah demi menghindari angka yang menyesatkan.")
+    cache_key = f"XAU:{range_key}:{round(fx_rate, 4)}"
+    now = time.time()
+    if not force and cache_key in _gold_series_cache and now - _gold_series_cache_time.get(cache_key, 0) < GOLD_SERIES_CACHE_SECONDS:
+        return {**_gold_series_cache[cache_key], "cache_status": "cached"}
+    try:
+        response = httpx.get(
+            GOLD_HISTORY_URL,
+            params={"metal": "XAU", "range": GOLD_SERIES_RANGES[range_key]},
+            timeout=12.0,
+            headers={"User-Agent": "WealthPilot/0.5.1 personal-dashboard"},
+        )
+        response.raise_for_status()
+        data = response.json()
+        points = data.get("points") if isinstance(data, dict) else None
+        if not isinstance(points, list) or not points:
+            return _gold_series_from_db(range_key, "Provider tidak mengembalikan titik histori emas.")
+        items = []
+        for point in points:
+            if not isinstance(point, dict):
+                continue
+            usd_oz = _to_float(point.get("price"))
+            point_time = _parse_timestamp(point.get("t"))
+            if usd_oz is None or usd_oz <= 0 or point_time is None:
+                continue
+            items.append({
+                "datetime": point_time.isoformat(timespec="seconds"),
+                "price": usd_oz * fx_rate / TROY_OUNCE_GRAMS,
+                "usd_per_troy_ounce": usd_oz,
+                "source": "Standard Bullion · histori XAU/USD × kurs USD/IDR saat ini",
+            })
+        items.sort(key=lambda item: item["datetime"])
+        if not items:
+            return _gold_series_from_db(range_key, "Tidak ada titik histori emas valid dari provider.")
+        result = {
+            "status": "ok", "cache_status": "fresh", "symbol": "XAU", "range": range_key,
+            "interval": str(data.get("grain") or "historis"), "source": "Standard Bullion · histori XAU/USD",
+            "fetched_at": now_iso(), "latest_at": items[-1]["datetime"], "item_count": len(items),
+            "items": items, "message": None,
+            "attribution": data.get("attribution") or "Data by Standard Bullion — https://standardbullion.com",
+            "note": f"Harga historis USD/troy ounce dikonversi ke IDR/gram memakai kurs USD/IDR terkini Rp{fx_rate:,.2f}; histori FX tidak digunakan. Harga historis rupiah karenanya bersifat estimasi.",
+        }
+        _gold_series_cache[cache_key] = result
+        _gold_series_cache_time[cache_key] = now
+        return result
+    except (httpx.HTTPError, ValueError, TypeError) as exc:
+        return _gold_series_from_db(range_key, f"Gagal mengambil histori Standard Bullion: {exc}")
+
+
 def latest_gold_rates() -> Optional[dict]:
     with connect() as db:
         row = db.execute("SELECT * FROM pegadaian_rates ORDER BY captured_at DESC, id DESC LIMIT 1").fetchone()
@@ -496,26 +729,24 @@ def latest_gold_rates() -> Optional[dict]:
 
 @app.get("/api/market")
 def get_market(force: bool = False):
-    gold = latest_gold_rates()
+    # Ambil FX terlebih dahulu karena quote emas XAU/USD dikonversi menjadi IDR/gram.
     spy = _quote_from_twelvedata("SPY", SPY_CACHE_SECONDS, force=force)
     fx = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS, force=force)
-    if fx.get("status") in ("ok", "stale") and fx.get("price"):
-        fx_rate = fx["price"]
-    else:
-        fx_rate = None
+    gold = gold_spot_quote(fx, force=force)
+    fx_rate = fx.get("price") if fx.get("status") in ("ok", "stale") and fx.get("price") else None
     return {
         "gold": {
-            "status": gold.get("freshness_status", "ok") if gold else "not_configured",
+            "status": gold.get("status", "error"),
             "data": gold,
-            "message": None if gold else "Masukkan harga beli dan harga jual kembali yang terlihat di aplikasi Tring! by Pegadaian.",
-            "source": gold["source"] if gold else "Tring! by Pegadaian",
-            "real_time_note": "Pegadaian memperbarui harga secara berkala; bukan tick-by-tick.",
+            "message": gold.get("message"),
+            "source": gold.get("source", "Standard Bullion"),
+            "real_time_note": "Bid/ask emas spot diperbarui saat pasar aktif, endpoint di-cache provider 15 detik; harga IDR memakai kurs USD/IDR provider. Ini bukan harga resmi Pegadaian.",
         },
         "spy": spy,
         "fx": fx,
         "fx_rate": fx_rate,
         "checked_at": now_iso(),
-        "refresh_seconds": {"spy": SPY_CACHE_SECONDS, "fx": USDIDR_CACHE_SECONDS},
+        "refresh_seconds": {"gold": GOLD_CACHE_SECONDS, "gold_history": GOLD_SERIES_CACHE_SECONDS, "spy": SPY_CACHE_SECONDS, "fx": USDIDR_CACHE_SECONDS},
     }
 
 
@@ -567,6 +798,18 @@ def save_pegadaian_rate(data: PegadaianRateInput):
         )
         row_id = cur.lastrowid
     return {"ok": True, "id": row_id, "rate": latest_gold_rates()}
+
+
+@app.get("/api/market/gold/series")
+def gold_market_series(range: str = "1D", force: bool = False):
+    """Histori spot emas XAU dari Standard Bullion, dikonversi ke IDR/gram.
+
+    Permintaan refresh histori tidak memaksa quote FX baru setiap kali rentang grafik
+    diganti. Tombol Refresh quote memperbarui quote pasar dan FX terlebih dahulu;
+    strategi ini mencegah klik rentang berulang menghabiskan kuota Twelve Data.
+    """
+    fx = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS, force=False)
+    return gold_spot_series(range, fx, force=force)
 
 
 @app.get("/api/market/pegadaian/history")
@@ -731,7 +974,7 @@ def _calculate_portfolio(txs: list[dict], gold: Optional[dict], spy: dict, fx_ra
                 # Legacy/deleted transaction sequences may leave a sell without enough preceding units.
                 # Do not quietly falsify remaining quantities; flag it in data quality warnings below.
                 pass
-    gold_current_price = float(gold["customer_sell_idr_g"]) if gold else None
+    gold_current_price = _to_float(gold.get("customer_sell_idr_g")) if gold else None
     spy_price = spy.get("price") if spy.get("status") in ("ok", "stale") else None
     gold_value = holdings["GOLD"]["quantity"] * gold_current_price if gold_current_price is not None else None
     fx = float(fx_rate) if fx_rate else None
@@ -743,19 +986,14 @@ def _calculate_portfolio(txs: list[dict], gold: Optional[dict], spy: dict, fx_ra
         market_data_warnings.append("Harga SPY memakai snapshot lama karena provider gagal diperbarui")
     if holdings["SPY"]["quantity"] > 0 and fx_status == "stale":
         market_data_warnings.append("Kurs USD/IDR memakai snapshot lama karena provider gagal diperbarui")
-    if holdings["GOLD"]["quantity"] > 0 and gold and gold.get("captured_at"):
-        try:
-            gold_captured = datetime.fromisoformat(str(gold["captured_at"]).replace("Z", "+00:00"))
-            if gold_captured.tzinfo is None:
-                gold_captured = gold_captured.replace(tzinfo=timezone.utc)
-            age_hours = (datetime.now(timezone.utc) - gold_captured.astimezone(timezone.utc)).total_seconds() / 3600
-            if age_hours > 24:
-                market_data_warnings.append("Harga emas Pegadaian belum diperbarui lebih dari 24 jam")
-        except (TypeError, ValueError, OverflowError):
-            market_data_warnings.append("Waktu snapshot harga emas tidak dapat diverifikasi")
+    if holdings["GOLD"]["quantity"] > 0 and gold:
+        if gold.get("freshness_status") == "stale" or gold.get("status") == "stale":
+            market_data_warnings.append("Quote emas spot terakhir sudah basi; periksa timestamp sebelum memakai valuasi")
+        if gold.get("customer_sell_idr_g") is not None and gold.get("fx_status") == "stale":
+            market_data_warnings.append("Estimasi harga emas dalam rupiah menggunakan kurs USD/IDR lama")
     if holdings["GOLD"]["quantity"] > 0:
         if gold_value is None:
-            missing_valuations.append("Harga jual kembali Pegadaian belum dicatat")
+            missing_valuations.append("Quote bid emas spot dan/atau kurs USD/IDR belum tersedia")
         else:
             unrealized += gold_value - holdings["GOLD"]["cost_basis_idr"]
     if holdings["SPY"]["quantity"] > 0:
@@ -804,7 +1042,7 @@ def _calculate_portfolio(txs: list[dict], gold: Optional[dict], spy: dict, fx_ra
         "valuation_warnings": missing_valuations,
         "market_data_warnings": market_data_warnings,
         "transaction_count": len(txs),
-        "method": "Dasar modal rata-rata tertimbang; valuasi emas menggunakan harga jual kembali Pegadaian.",
+        "method": "Dasar modal rata-rata tertimbang; valuasi emas memakai estimasi bid spot XAU/USD dikonversi ke IDR/gram, bukan harga buyback resmi Pegadaian.",
     }
 
 
@@ -875,9 +1113,9 @@ def create_transaction(data: TransactionInput):
 
     # Panggil penyedia data sesudah transaksi database selesai agar request eksternal
     # tidak menahan kunci tulis SQLite. Quote tidak diperlukan untuk validasi ledger.
-    gold = latest_gold_rates()
     spy = _quote_from_twelvedata("SPY", SPY_CACHE_SECONDS)
     fx_quote = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS)
+    gold = gold_spot_quote(fx_quote)
     fx_rate = fx_quote.get("price") if fx_quote.get("status") in ("ok", "stale") else None
     with connect() as db:
         txs = _read_transactions(db)
@@ -909,9 +1147,9 @@ def update_transaction(transaction_id: int, data: TransactionInput):
         if validation_error:
             raise HTTPException(status_code=400, detail="Perubahan ditolak agar ledger tetap konsisten. " + validation_error)
 
-    gold = latest_gold_rates()
     spy = _quote_from_twelvedata("SPY", SPY_CACHE_SECONDS)
     fx_quote = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS)
+    gold = gold_spot_quote(fx_quote)
     fx_rate = fx_quote.get("price") if fx_quote.get("status") in ("ok", "stale") else None
     with connect() as db:
         txs = _read_transactions(db)
@@ -937,17 +1175,18 @@ def delete_transaction(transaction_id: int):
 
 @app.get("/api/overview")
 def overview(force_market: bool = False):
-    gold = latest_gold_rates()
     spy = _quote_from_twelvedata("SPY", SPY_CACHE_SECONDS, force=force_market)
     fx = _quote_from_twelvedata("USD/IDR", USDIDR_CACHE_SECONDS, force=force_market)
+    gold = gold_spot_quote(fx, force=force_market)
     with connect() as db:
         txs = _read_transactions(db)
         goals = [dict(r) for r in db.execute("SELECT * FROM goals ORDER BY id ASC").fetchall()]
         recent = [dict(r) for r in db.execute("SELECT * FROM transactions ORDER BY occurred_at DESC, id DESC LIMIT 8").fetchall()]
     pf = _calculate_portfolio(txs, gold, spy, fx.get("price") if fx.get("status") in ("ok", "stale") else None, fx.get("status"))
     return {"portfolio": pf, "market": {
-        "gold": {"data": gold, "status": gold.get("freshness_status", "ok") if gold else "not_configured"},
+        "gold": {"data": gold, "status": gold.get("status", "error"), "source": gold.get("source")},
         "spy": spy, "fx": fx,
+        "refresh_seconds": {"gold": GOLD_CACHE_SECONDS, "gold_history": GOLD_SERIES_CACHE_SECONDS, "spy": SPY_CACHE_SECONDS, "fx": USDIDR_CACHE_SECONDS},
     }, "goals": goals, "recent_transactions": recent, "generated_at": now_iso()}
 
 
@@ -1076,6 +1315,10 @@ def health():
         "twelve_data_configured": bool(API_KEY),
         "market_quote_interval": SPY_QUOTE_INTERVAL,
         "series_cache_seconds": SPY_SERIES_CACHE_SECONDS,
-        "gold_rate_configured": latest_gold_rates() is not None,
+        "gold_provider": "Standard Bullion (XAU live bid/ask, no API key)",
+        "gold_provider_url": GOLD_SPOT_URL,
+        "gold_cache_seconds": GOLD_CACHE_SECONDS,
+        "gold_history_cache_seconds": GOLD_SERIES_CACHE_SECONDS,
+        "gold_manual_legacy_rate_configured": latest_gold_rates() is not None,
         "timestamp": now_iso(),
     }
