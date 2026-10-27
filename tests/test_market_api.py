@@ -1,4 +1,4 @@
-"""Tes harga Pegadaian manual dan penanganan quote provider."""
+"""Tes quote emas spot bid/ask, endpoint legacy Pegadaian, dan market-data."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -19,6 +19,10 @@ class MarketApiTests(unittest.TestCase):
         main._quote_cache_time.clear()
         main._series_cache.clear()
         main._series_cache_time.clear()
+        main._gold_raw_cache.clear()
+        main._gold_raw_cache_time = 0.0
+        main._gold_series_cache.clear()
+        main._gold_series_cache_time.clear()
         self.client_context = TestClient(main.app)
         self.client = self.client_context.__enter__()
 
@@ -30,6 +34,10 @@ class MarketApiTests(unittest.TestCase):
         main._quote_cache_time.clear()
         main._series_cache.clear()
         main._series_cache_time.clear()
+        main._gold_raw_cache.clear()
+        main._gold_raw_cache_time = 0.0
+        main._gold_series_cache.clear()
+        main._gold_series_cache_time.clear()
 
     def test_gold_price_001g_normalizes_to_per_gram(self):
         response = self.client.post("/api/market/pegadaian", json={
@@ -46,7 +54,11 @@ class MarketApiTests(unittest.TestCase):
 
 
     def test_missing_api_key_does_not_fabricate_market_price(self):
-        with patch.object(main, "API_KEY", ""):
+        with patch.object(main, "API_KEY", ""), patch.object(main, "_fetch_standard_bullion_quote", return_value={
+            "status": "error", "source": "Standard Bullion", "timestamp": None,
+            "ask_usd_oz": None, "bid_usd_oz": None, "message": "network not mocked",
+            "attribution": "Data by Standard Bullion",
+        }):
             market = self.client.get("/api/market").json()
         self.assertEqual(market["spy"]["status"], "not_configured")
         self.assertIsNone(market["spy"]["price"])
@@ -178,6 +190,128 @@ class MarketApiTests(unittest.TestCase):
         self.assertEqual(quote["status"], "stale")
         self.assertEqual(quote["price"], 500.0)
         self.assertIn("tersimpan", quote["message"])
+
+
+    def test_market_endpoint_exposes_gold_buy_sell_and_mid_price(self):
+        updated = main.datetime.now(main.timezone.utc).isoformat(timespec="seconds")
+        def quote(symbol, _ttl, force=False):
+            if symbol == "USD/IDR":
+                return {"status": "ok", "price": 16_000.0, "timestamp": updated, "source": "Twelve Data"}
+            return {"status": "ok", "price": 550.0, "percent_change": 0.5, "timestamp": updated, "source": "Twelve Data"}
+        raw_gold = {
+            "status": "ok", "source": "Standard Bullion", "timestamp": updated,
+            "ask_usd_oz": 4050.0, "bid_usd_oz": 4040.0,
+            "change_today": {"percent": 1.25}, "attribution": "Data by Standard Bullion",
+        }
+        with patch.object(main, "_quote_from_twelvedata", side_effect=quote), \
+             patch.object(main, "_fetch_standard_bullion_quote", return_value=raw_gold):
+            response = self.client.get("/api/market")
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        gold = payload["gold"]["data"]
+        self.assertEqual(payload["gold"]["source"], "Standard Bullion")
+        self.assertAlmostEqual(gold["customer_buy_idr_g"], 4050.0 * 16000.0 / main.TROY_OUNCE_GRAMS)
+        self.assertAlmostEqual(gold["customer_sell_idr_g"], 4040.0 * 16000.0 / main.TROY_OUNCE_GRAMS)
+        self.assertGreater(gold["customer_buy_idr_g"], gold["customer_sell_idr_g"])
+        self.assertIn("refresh_seconds", payload)
+
+    def test_standard_bullion_bid_ask_converts_usd_oz_to_idr_per_gram(self):
+        updated = main.datetime.now(main.timezone.utc).isoformat(timespec="seconds")
+        payload = {
+            "source": "Standard Bullion", "url": "https://standardbullion.com",
+            "updated": updated, "attribution": "Data by Standard Bullion — https://standardbullion.com",
+            "disclaimer": "Indicative live dealer prices.",
+            "metals": [{"symbol": "XAU", "name": "Gold", "ask": 4050.0, "bid": 4040.0,
+                        "open": 4000.0, "changeToday": {"amount": 50.0, "percent": 1.25},
+                        "changes": {"1w": 0.5}}],
+        }
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = payload
+        fx = {"status": "ok", "price": 16000.0, "timestamp": updated}
+        with patch.object(main.httpx, "get", return_value=response):
+            quote = main.gold_spot_quote(fx, force=True)
+        self.assertEqual(quote["status"], "ok")
+        self.assertAlmostEqual(quote["customer_buy_idr_g"], 4050.0 * 16000.0 / main.TROY_OUNCE_GRAMS, places=6)
+        self.assertAlmostEqual(quote["customer_sell_idr_g"], 4040.0 * 16000.0 / main.TROY_OUNCE_GRAMS, places=6)
+        self.assertGreater(quote["customer_buy_idr_g"], quote["customer_sell_idr_g"])
+        self.assertAlmostEqual(quote["spot_mid_idr_g"], (quote["customer_buy_idr_g"] + quote["customer_sell_idr_g"]) / 2)
+        self.assertEqual(quote["source"], "Standard Bullion")
+        self.assertIn("bukan harga resmi Pegadaian", quote["valuation_note"])
+        with main.connect() as db:
+            ask_row = db.execute("SELECT * FROM market_snapshots WHERE symbol='GOLD/IDR_GRAM_ASK'").fetchone()
+            bid_row = db.execute("SELECT * FROM market_snapshots WHERE symbol='GOLD/IDR_GRAM_BID'").fetchone()
+        self.assertIsNotNone(ask_row)
+        self.assertIsNotNone(bid_row)
+
+    def test_gold_series_endpoint_converts_real_provider_history_with_current_fx(self):
+        updated = main.datetime.now(main.timezone.utc).isoformat(timespec="seconds")
+        payload = {
+            "source": "Standard Bullion", "attribution": "Data by Standard Bullion",
+            "metal": "XAU", "unit": "USD per troy ounce", "range": "24h", "grain": "15-minute",
+            "points": [
+                {"t": "2026-10-28T01:00:00Z", "price": 4000.0},
+                {"t": "2026-10-28T01:15:00Z", "price": 4010.0},
+            ],
+        }
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = payload
+        with patch.object(main, "_quote_from_twelvedata", return_value={"status": "ok", "price": 16000.0, "timestamp": updated}), \
+             patch.object(main.httpx, "get", return_value=response) as get:
+            result = self.client.get("/api/market/gold/series?range=1D&force=true").json()
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["item_count"], 2)
+        self.assertAlmostEqual(result["items"][0]["price"], 4000.0 * 16000.0 / main.TROY_OUNCE_GRAMS, places=6)
+        self.assertEqual(get.call_args.kwargs["params"], {"metal": "XAU", "range": "24h"})
+        self.assertIn("kurs USD/IDR terkini", result["note"])
+
+    def test_gold_series_without_fx_does_not_invent_idr_prices(self):
+        with patch.object(main, "_quote_from_twelvedata", return_value={"status": "not_configured", "price": None}):
+            result = self.client.get("/api/market/gold/series?range=1D").json()
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["items"], [])
+        self.assertIn("Kurs USD/IDR tidak tersedia", result["message"])
+
+    def test_gold_series_fallback_filters_points_to_selected_range(self):
+        now = main.datetime.now(main.timezone.utc)
+        rows = [
+            ("GOLD/IDR_GRAM_BID", 2_000_000.0, None, (now - main.timedelta(days=40)).isoformat(timespec="seconds"), "Standard Bullion × USD/IDR", "provider_timestamp"),
+            ("GOLD/IDR_GRAM_BID", 2_100_000.0, None, (now - main.timedelta(days=2)).isoformat(timespec="seconds"), "Standard Bullion × USD/IDR", "provider_timestamp"),
+            ("GOLD/IDR_GRAM_BID", 2_200_000.0, None, (now - main.timedelta(minutes=30)).isoformat(timespec="seconds"), "Standard Bullion × USD/IDR", "provider_timestamp"),
+        ]
+        with main.connect() as db:
+            db.executemany(
+                "INSERT INTO market_snapshots(symbol, price, percent_change, timestamp, source, timestamp_precision) VALUES(?,?,?,?,?,?)",
+                rows,
+            )
+        with patch.object(main, "_quote_from_twelvedata", return_value={"status": "not_configured", "price": None}):
+            result = self.client.get("/api/market/gold/series?range=1D").json()
+        self.assertEqual(result["status"], "stale")
+        self.assertEqual(result["item_count"], 1)
+        self.assertEqual(result["items"][0]["price"], 2_200_000.0)
+
+    def test_gold_series_does_not_force_extra_fx_quote_on_range_change(self):
+        updated = main.datetime.now(main.timezone.utc).isoformat(timespec="seconds")
+        payload = {
+            "attribution": "Data by Standard Bullion", "grain": "15-minute",
+            "points": [
+                {"t": "2026-10-28T01:00:00Z", "price": 4000.0},
+                {"t": "2026-10-28T01:15:00Z", "price": 4010.0},
+            ],
+        }
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = payload
+        with patch.object(main, "_quote_from_twelvedata", return_value={"status": "ok", "price": 16000.0, "timestamp": updated}) as fx_call, \
+             patch.object(main.httpx, "get", return_value=response):
+            result = self.client.get("/api/market/gold/series?range=1D&force=true").json()
+        self.assertEqual(result["status"], "ok")
+        fx_call.assert_called_once_with("USD/IDR", main.USDIDR_CACHE_SECONDS, force=False)
+
+    def test_gold_series_rejects_unsupported_range(self):
+        response = self.client.get("/api/market/gold/series?range=3H")
+        self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

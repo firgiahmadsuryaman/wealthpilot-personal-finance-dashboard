@@ -15,8 +15,14 @@ class MarketMonitorUiTests(unittest.TestCase):
             'id="spyRangeChange"',
             'id="spyLastClose"',
             'id="spyChartMessage"',
-            'app.js?v=0.4.1',
-            'style.css?v=0.4.1',
+            'id="goldChartRange"',
+            'id="goldHistoryChart"',
+            'id="goldSpotPrice"',
+            'Harga beli indikatif · ask (kamu membeli)',
+            'Harga jual indikatif · bid (kamu menjual)',
+            'https://standardbullion.com/spot-prices.json',
+            'app.js?v=0.5.1',
+            'style.css?v=0.5.1',
         ):
             with self.subTest(token=token):
                 self.assertIn(token, html)
@@ -24,9 +30,14 @@ class MarketMonitorUiTests(unittest.TestCase):
     def test_frontend_loads_provider_series_and_exposes_error_message(self):
         js = (ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn("/api/market/series/SPY?range=", js)
+        self.assertIn("/api/market/gold/series?range=", js)
+        self.assertIn("goldChartMessage", js)
         self.assertIn("spyChartMessage", js)
         self.assertIn("Perubahan rentang:", js)
         self.assertIn("Close candle terakhir:", js)
+        self.assertNotIn("goldRateModal", (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8"))
+        self.assertNotIn("submitGoldRate", js)
+        self.assertIn("XAU/USD", js)
 
 
 if __name__ == "__main__":

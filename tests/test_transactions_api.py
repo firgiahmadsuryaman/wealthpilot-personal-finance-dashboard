@@ -16,6 +16,12 @@ class TransactionApiTests(unittest.TestCase):
         self.db_patch.start()
         self.key_patch = patch.object(main, "API_KEY", "")
         self.key_patch.start()
+        self.gold_patch = patch.object(main, "_fetch_standard_bullion_quote", return_value={
+            "status": "error", "source": "Standard Bullion", "timestamp": None,
+            "ask_usd_oz": None, "bid_usd_oz": None, "message": "Provider dinonaktifkan pada unit test",
+            "attribution": "Data by Standard Bullion",
+        })
+        self.gold_patch.start()
         self.client_context = TestClient(main.app)
         self.client = self.client_context.__enter__()
 
@@ -23,6 +29,7 @@ class TransactionApiTests(unittest.TestCase):
         self.client_context.__exit__(None, None, None)
         self.db_patch.stop()
         self.key_patch.stop()
+        self.gold_patch.stop()
         self.temp_dir.cleanup()
 
     def test_deposit_and_gold_purchase_keep_contribution_separate(self):

@@ -14,12 +14,19 @@ class ExportApiTests(unittest.TestCase):
         self.temp_dir = TemporaryDirectory()
         self.db_patch = patch.object(main, "DB_PATH", Path(self.temp_dir.name) / "exports-test.db")
         self.db_patch.start()
+        self.gold_patch = patch.object(main, "_fetch_standard_bullion_quote", return_value={
+            "status": "error", "source": "Standard Bullion", "timestamp": None,
+            "ask_usd_oz": None, "bid_usd_oz": None, "message": "Provider dinonaktifkan pada unit test",
+            "attribution": "Data by Standard Bullion",
+        })
+        self.gold_patch.start()
         self.client_context = TestClient(main.app)
         self.client = self.client_context.__enter__()
 
     def tearDown(self):
         self.client_context.__exit__(None, None, None)
         self.db_patch.stop()
+        self.gold_patch.stop()
         self.temp_dir.cleanup()
 
     def test_export_backup_contains_local_tables_but_not_provider_secret(self):
