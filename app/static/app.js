@@ -4,6 +4,7 @@ const state = {
   goldHistory: [],
   spyHistory: [],
   spyChartRange: '1D',
+  goldChartRange: '1D',
   market: null,
 };
 
@@ -68,7 +69,6 @@ function openModal(id) {
     if (!$('txDate').value) $('txDate').value = localDatetimeInput();
     updateTxFields();
   }
-  if (id === 'goldRateModal' && !$('goldCapturedAt').value) $('goldCapturedAt').value = localDatetimeInput();
 }
 function closeModal(id) {
   const el = $(id); if (!el) return;
@@ -84,7 +84,7 @@ function txTypeLabel(type) {
   return ({DEPOSIT:'Setoran modal',WITHDRAW:'Penarikan',BUY:'Pembelian',SELL:'Penjualan',OPENING:'Saldo awal aset',DIVIDEND:'Dividen / pendapatan'})[type] || type;
 }
 function txBadge(type) { return `<span class="tx-pill ${String(type).toLowerCase()}">${escapeHtml(txTypeLabel(type))}</span>`; }
-function assetLabel(asset) { return ({GOLD:'Tabungan Emas Pegadaian',SPY:'SPY · S&P 500 ETF',CASH:'Kas portofolio'})[asset] || asset; }
+function assetLabel(asset) { return ({GOLD:'Emas digital (benchmark XAU)',SPY:'SPY · S&P 500 ETF',CASH:'Kas portofolio'})[asset] || asset; }
 function formatTxQuantity(tx) {
   if (['DEPOSIT','WITHDRAW','DIVIDEND'].includes(tx.tx_type)) return fmtIDR(tx.amount_idr);
   return `${fmtNum(tx.quantity,8)} ${tx.asset==='GOLD'?'gram':tx.asset==='SPY'?'unit':''}`;
@@ -118,35 +118,44 @@ function renderTransactionRows(items, target, allowDelete=false) {
 function renderMarket(market) {
   state.market = market;
   const goldWrap = market?.gold || {};
-  const gold = goldWrap.data;
-  if (gold) {
-    setText('goldSellPrice', `${fmtIDR(gold.customer_sell_idr_g)} `);
-    $('goldSellPrice').innerHTML = `${escapeHtml(fmtIDR(gold.customer_sell_idr_g))} <small>/ gram (harga jual kembali)</small>`;
-    const rawUnit = gold.quote_unit === '0.01G' ? '/ 0,01 gram' : '/ gram';
-    const buyEntered = gold.customer_buy_entered ?? (gold.quote_unit === '0.01G' ? Number(gold.customer_buy_idr_g)/100 : gold.customer_buy_idr_g);
-    const sellEntered = gold.customer_sell_entered ?? (gold.quote_unit === '0.01G' ? Number(gold.customer_sell_idr_g)/100 : gold.customer_sell_idr_g);
-    setText('goldBuyPrice', `${fmtIDR(buyEntered)} ${rawUnit}`);
-    setText('goldSellPriceSmall', `${fmtIDR(sellEntered)} ${rawUnit}`);
-    setText('goldSource', gold.source || 'Tring! by Pegadaian');
-    setText('goldUpdated', `Update ${fmtDate(gold.captured_at)}`);
-    const delta = gold.sellback_change_pct;
-    const changeText = delta == null ? 'Riwayat pembanding belum cukup' : `${Number(delta)>=0?'▲':'▼'} ${fmtPct(delta)} sejak pembaruan sebelumnya`;
+  const gold = goldWrap.data || {};
+  const hasGoldAsk = Number.isFinite(Number(gold.customer_buy_idr_g)) && gold.customer_buy_idr_g != null;
+  const hasGoldBid = Number.isFinite(Number(gold.customer_sell_idr_g)) && gold.customer_sell_idr_g != null;
+  const goldStatus = gold.status || goldWrap.status || 'error';
+  const goldTime = gold.timestamp || gold.captured_at;
+  if (hasGoldAsk || hasGoldBid) {
+    const ask = hasGoldAsk ? Number(gold.customer_buy_idr_g) : null;
+    const bid = hasGoldBid ? Number(gold.customer_sell_idr_g) : null;
+    const mid = gold.spot_mid_idr_g != null ? Number(gold.spot_mid_idr_g) : (ask != null && bid != null ? (ask + bid) / 2 : null);
+    $('goldSpotPrice').innerHTML = `${escapeHtml(fmtIDR(mid))} <small>/ gram (spot · acuan)</small>`;
+    setText('goldBuyPrice', `${fmtIDR(ask)} / gram`);
+    setText('goldSellPriceSmall', `${fmtIDR(bid)} / gram`);
+    setText('goldSource', `${gold.source || 'Standard Bullion'} · XAU/USD × USD/IDR`);
+    setText('goldUpdated', `Quote sumber ${fmtDate(goldTime)}`);
+    const delta = gold.change_today_pct ?? gold.sellback_change_pct;
+    const changeText = delta == null ? 'Perubahan harian XAU/USD tidak diberikan provider' : `XAU/USD ${Number(delta)>=0?'▲':'▼'} ${fmtPct(delta)} hari ini`;
     setText('goldChange', changeText);
     $('goldChange').className = `asset-delta ${delta==null?'':signedClass(delta)}`;
-    const goldStale = gold.freshness_status === 'stale';
-    setText('goldStatus', goldStale ? 'Snapshot basi · >24 jam' : gold.freshness_status === 'unknown' ? 'Waktu tidak valid' : 'Harga tercatat');
-    $('goldStatus').className = goldStale || gold.freshness_status === 'unknown' ? 'pill pill-neutral' : 'pill pill-good';
-    setText('settingGoldBuy',`${fmtIDR(buyEntered)} ${rawUnit}`);
-    setText('settingGoldSell',`${fmtIDR(sellEntered)} ${rawUnit}`);
-    setText('settingGoldTime',fmtDate(gold.captured_at));
-    setText('goldSourceStatus','Tring! · tersimpan'); $('goldSourceStatus').className='pill pill-good';
+    const isStale = goldStatus === 'stale' || gold.freshness_status === 'stale' || gold.fx_status === 'stale';
+    setText('goldStatus', isStale ? 'Quote terakhir · periksa waktu' : 'Bid/ask pasar tersedia');
+    $('goldStatus').className = isStale ? 'pill pill-neutral' : 'pill pill-good';
+    setText('settingGoldBuy', fmtIDR(ask));
+    setText('settingGoldSell', fmtIDR(bid));
+    setText('settingGoldTime', fmtDate(goldTime));
+    setText('goldSourceStatus', isStale ? 'Quote lama / kurs lama' : 'Terhubung');
+    $('goldSourceStatus').className = isStale ? 'pill pill-neutral' : 'pill pill-good';
+    if (gold.valuation_note) setText('goldChartMessage', `${gold.valuation_note} ${gold.attribution || ''}`.trim());
   } else {
-    $('goldSellPrice').innerHTML = `— <small>/ gram (harga jual kembali)</small>`;
-    setText('goldBuyPrice','—'); setText('goldSellPriceSmall','—'); setText('goldSource','Sumber: Tring! by Pegadaian');
-    setText('goldUpdated','Belum ada harga tersimpan'); setText('goldChange','Simpan harga beli dan jual kembali dari aplikasi Tring!');
-    setText('goldStatus','Belum disinkronkan'); $('goldStatus').className='pill pill-neutral';
-    setText('settingGoldBuy','Belum dicatat'); setText('settingGoldSell','Belum dicatat'); setText('settingGoldTime','—');
-    setText('goldSourceStatus','Manual sync'); $('goldSourceStatus').className='pill pill-neutral';
+    $('goldSpotPrice').innerHTML = `— <small>/ gram (spot · acuan)</small>`;
+    setText('goldBuyPrice','—'); setText('goldSellPriceSmall','—');
+    setText('goldSource','Sumber: Standard Bullion · harga spot emas');
+    setText('goldUpdated', 'Quote emas atau kurs USD/IDR belum tersedia');
+    setText('goldChange', gold.message || goldWrap.message || 'Periksa sumber harga emas dan quote USD/IDR.');
+    $('goldChange').className='asset-delta';
+    setText('goldStatus', goldStatus==='error'?'Data tidak tersedia':'Kurs belum tersedia');
+    $('goldStatus').className='pill pill-neutral';
+    setText('settingGoldBuy','—'); setText('settingGoldSell','—'); setText('settingGoldTime','—');
+    setText('goldSourceStatus','Belum tersedia'); $('goldSourceStatus').className='pill pill-neutral';
   }
 
   const spy = market?.spy || {};
@@ -179,8 +188,9 @@ function renderMarket(market) {
   }
   if (fxRate) { setText('usdIdr',`Rp${fmtNum(fxRate,2)}`); setText('settingFxStatus',`Rp${fmtNum(fxRate,2)}`); }
   else { setText('usdIdr','—'); setText('settingFxStatus','Belum tersambung'); }
-  setText('settingRefresh',`SPY ${market.refresh_seconds?.spy||'—'} dtk · FX ${market.refresh_seconds?.fx||'—'} dtk`);
+  setText('settingRefresh',`Emas ${market.refresh_seconds?.gold||'—'} dtk · SPY ${market.refresh_seconds?.spy||'—'} dtk · FX ${market.refresh_seconds?.fx||'—'} dtk`);
 }
+
 function renderPortfolio(pf) {
   setText('metricCapital', fmtIDR(pf.net_contributions_idr));
   setText('metricValue', pf.portfolio_value_idr == null ? 'Belum lengkap' : fmtIDR(pf.portfolio_value_idr));
@@ -216,7 +226,7 @@ function renderPortfolio(pf) {
 function renderAllocation(pf) {
   const rows = [];
   const entries = [
-    {key:'GOLD',label:'Tabungan Emas Pegadaian',color:'#f0be4f'},
+    {key:'GOLD',label:'Emas digital · benchmark XAU',color:'#f0be4f'},
     {key:'SPY',label:'SPY · S&P 500 ETF',color:'#519cff'}
   ];
   entries.forEach(x=>{
@@ -235,14 +245,14 @@ function renderAllocation(pf) {
   $('allocationArea').innerHTML=`<div class="allocation-layout"><div class="donut" style="background:conic-gradient(${stops.join(',')})"><div class="donut-center"><small>Nilai aset</small><b>${fmtIDR(total,true)}</b></div></div><div class="allocation-legend">${rows.map(r=>`<div class="legend-row"><i style="background:${r.color}"></i><div><b>${escapeHtml(r.label)}</b><small>${fmtNum(r.qty,8)} ${r.key==='GOLD'?'gram':'unit'}</small></div><strong>${r.value==null?'—':fmtIDR(r.value,true)}</strong></div>`).join('')}</div></div>`;
 }
 function renderHoldings(pf) {
-  const names = {GOLD:'Tabungan Emas Pegadaian',SPY:'SPY · S&P 500 ETF'};
+  const names = {GOLD:'Emas digital · benchmark XAU',SPY:'SPY · S&P 500 ETF'};
   const icons = {GOLD:'Au',SPY:'SPY'};
   const classes = {GOLD:'gold-brand',SPY:'spy-brand'};
   $('holdingsCards').innerHTML = Object.keys(names).map(key=>{
     const h=pf.holdings[key]; const qty=Number(h.quantity||0);
     const curr = h.current_value_idr;
     const pnl = h.unrealized_pnl_idr;
-    const subtitle = key==='GOLD' ? `${fmtNum(qty,8)} gram · valuasi memakai harga jual kembali Pegadaian` : `${fmtNum(qty,8)} unit · harga pasar × kurs USD/IDR`;
+    const subtitle = key==='GOLD' ? `${fmtNum(qty,8)} gram · valuasi bid spot indikatif, bukan buyback Pegadaian` : `${fmtNum(qty,8)} unit · harga pasar × kurs USD/IDR`;
     return `<article class="holding-card"><div class="holding-head"><div class="asset-brand ${classes[key]}">${icons[key]}</div><div><b>${names[key]}</b><small>${subtitle}</small></div><span class="pill ${h.valuation_status==='ok'?'pill-good':'pill-neutral'}">${qty>0?(h.valuation_status==='ok'?'Tercatat':'Harga belum ada'):'Kosong'}</span></div><div class="holding-value">${qty>0?(curr==null?'Belum lengkap':fmtIDR(curr)):'Rp0'}</div><div class="holding-sub">Nilai pasar saat ini</div><div class="holding-stats"><div><small>Dasar modal tersisa</small><b>${fmtIDR(h.cost_basis_idr)}</b></div><div><small>Untung/rugi belum terealisasi</small><b class="${pnl==null?'muted':signedClass(pnl)}">${pnl==null?'—':`${pnl>0?'+':''}${fmtIDR(pnl)}`}</b></div></div></article>`;
   }).join('');
 }
@@ -355,17 +365,32 @@ function drawLineChart(canvasId, items, valueKey, color='#46d6b0', rangeKey='1D'
     ctx.fillText(chartTickLabel(valid[index],rangeKey),x,height-9);
   });
 }
-function renderGoldHistory(items) {
-  state.goldHistory=items||[];
-  const enough=state.goldHistory.length>=2;
-  $('goldHistoryEmpty').classList.toggle('hidden',enough);
-  setText('goldHistoryEmpty', state.goldHistory.length===0
-    ? 'Belum ada histori harga dari Tring!. Masukkan harga beli dan jual kembali yang terlihat di aplikasi Pegadaian.'
-    : 'Baru ada satu snapshot harga dari Tring!. Simpan pembaruan di waktu berbeda agar perubahan harga dapat digambar.');
-  setText('goldChartStatus',state.goldHistory.length===0?'Belum ada snapshot':`${state.goldHistory.length} snapshot · input Tring!`);
-  $('goldChartStatus').className=state.goldHistory.length>=2?'pill pill-good':'pill pill-neutral';
-  drawLineChart('goldHistoryChart',state.goldHistory,'customer_sell_idr_g','#f1bd4c','1M');
+function renderGoldHistory(series) {
+  const payload = Array.isArray(series) ? {items:series, status:'ok'} : (series || {});
+  state.goldHistory = payload.items || [];
+  state.goldChartRange = payload.range || $('goldChartRange')?.value || state.goldChartRange || '1D';
+  const enough = state.goldHistory.length >= 2;
+  $('goldHistoryEmpty').classList.toggle('hidden', enough);
+  if (payload.status === 'error') setText('goldHistoryEmpty', payload.message || 'Histori harga spot emas tidak tersedia.');
+  else if (payload.status === 'stale') setText('goldHistoryEmpty', payload.message || 'Histori lama ditampilkan karena sumber tidak dapat diperbarui.');
+  else setText('goldHistoryEmpty', state.goldHistory.length === 0 ? (payload.message || 'Belum ada histori harga spot emas dari provider.') : 'Baru satu titik histori tersedia; grafik memerlukan minimal dua titik.');
+  setText('goldChartStatus', state.goldHistory.length ? `${state.goldHistory.length} titik · ${payload.interval || 'historis'} · ${payload.cache_status || 'provider'}` : (payload.status === 'error' ? 'Histori tidak tersedia' : 'Menunggu histori'));
+  $('goldChartStatus').className = payload.status === 'ok' && enough ? 'pill pill-good' : 'pill pill-neutral';
+  setText('goldChartMessage', payload.note || payload.message || 'Harga historis dalam IDR merupakan estimasi spot XAU/USD dikonversi menggunakan USD/IDR terkini.');
+  const valid = state.goldHistory.map(item => ({...item, _price:Number(item.price)})).filter(item => Number.isFinite(item._price) && item._price > 0).sort((a,b)=>String(a.datetime||'').localeCompare(String(b.datetime||'')));
+  if (valid.length) {
+    const first=valid[0]._price, last=valid[valid.length-1]._price;
+    const pct=first>0?(last/first-1)*100:null;
+    setText('goldRangeChange',pct==null?'Perubahan rentang: —':`Perubahan rentang: ${pct>0?'+':''}${fmtPct(pct)}`);
+    $('goldRangeChange').className=`asset-delta ${pct==null?'':signedClass(pct)}`;
+    setText('goldLastPrice',`Harga terakhir: ${fmtIDR(last)}/gram · ${chartTimestampLabel(valid[valid.length-1],state.goldChartRange)}`);
+  } else {
+    setText('goldRangeChange','Perubahan rentang: —'); $('goldRangeChange').className='asset-delta';
+    setText('goldLastPrice','Harga terakhir: —');
+  }
+  drawLineChart('goldHistoryChart',state.goldHistory,'price','#f1bd4c',state.goldChartRange);
 }
+
 function renderSpySeries(series) {
   const items=series?.items||[];
   state.spyHistory=items;
@@ -408,18 +433,20 @@ function renderSpySeries(series) {
 }
 async function loadHistories(force=false) {
   try {
-    const range=$('spyChartRange')?.value||state.spyChartRange||'1D';
-    const seriesUrl=`/api/market/series/SPY?range=${encodeURIComponent(range)}${force?'&force=true':''}`;
-    const [gold,spy]=await Promise.all([
-      api('/api/market/pegadaian/history?limit=120'),
-      api(seriesUrl),
-    ]);
-    renderGoldHistory(gold.items||[]);
+    const goldRange=$('goldChartRange')?.value||state.goldChartRange||'1D';
+    const spyRange=$('spyChartRange')?.value||state.spyChartRange||'1D';
+    const goldUrl=`/api/market/gold/series?range=${encodeURIComponent(goldRange)}${force?'&force=true':''}`;
+    const spyUrl=`/api/market/series/SPY?range=${encodeURIComponent(spyRange)}${force?'&force=true':''}`;
+    const [gold,spy]=await Promise.all([api(goldUrl),api(spyUrl)]);
+    renderGoldHistory(gold);
     renderSpySeries(spy);
   } catch(e) {
     console.warn('Gagal memuat histori Market Monitor:',e);
+    setText('goldChartStatus','Gagal memuat histori');
+    setText('goldHistoryEmpty',`Tidak dapat memuat grafik emas: ${e.message}`);
+    $('goldHistoryEmpty').classList.remove('hidden');
     setText('spyChartStatus','Gagal memuat histori');
-    setText('spyHistoryEmpty',`Tidak dapat memuat grafik: ${e.message}`);
+    setText('spyHistoryEmpty',`Tidak dapat memuat grafik SPY: ${e.message}`);
     $('spyHistoryEmpty').classList.remove('hidden');
   }
 }
@@ -481,20 +508,12 @@ function updateTxFields() {
   $('txAmount').required=isCash;
   $('txFx').required=!isCash&&asset==='SPY';
   $('qtyLabel').textContent=asset==='GOLD'?'Kuantitas (gram)':'Kuantitas (unit SPY)';
-  if(asset==='GOLD') $('priceLabel').textContent=type==='OPENING'?'Harga modal per satuan yang dipilih':type==='SELL'?'Harga jual kembali Pegadaian yang dipilih':'Harga beli Pegadaian yang dipilih';
+  if(asset==='GOLD') $('priceLabel').textContent=type==='OPENING'?'Harga modal per gram':type==='SELL'?'Harga jual aktual per gram':'Harga beli aktual per gram';
   else $('priceLabel').textContent=type==='OPENING'?'Harga biaya per unit (USD)':type==='SELL'?'Harga jual eksekusi per unit (USD)':'Harga beli eksekusi per unit (USD)';
   if(isCash){$('txHint').textContent=type==='DEPOSIT'?'Setoran modal menambah kas dan modal bersih.':type==='WITHDRAW'?'Penarikan mengurangi kas serta modal bersih; saldo kas harus cukup.':'Dividen menambah kas dan hasil investasi, bukan modal baru.';}
   else if(type==='OPENING'){$('txHint').textContent='Untuk aset yang sudah dimiliki sebelum mulai memakai WealthPilot. Masukkan biaya per unit rata-rata dari catatanmu; saldo awal menambah modal tercatat tetapi tidak mengubah kas.';}
   else if(type==='BUY'){$('txHint').textContent='Harga harus sesuai transaksi/riwayat aplikasi. Pembelian mengurangi saldo kas dan menambah aset; transaksi ditolak jika kas tidak cukup.';}
-  else {$('txHint').textContent=asset==='GOLD'?'Gunakan harga jual kembali per gram yang tampil di Tring! saat penjualan dilakukan.':'Gunakan harga eksekusi dari riwayat Pluang dan kurs IDR/USD yang berlaku saat transaksi.';}
-  if(asset==='GOLD' && state.market?.gold?.data){
-    const rate=state.market.gold.data;
-    const isRawHundredth=$('txPriceUnit').value==='0.01G';
-    const buyDefault=isRawHundredth?(rate.customer_buy_entered ?? Number(rate.customer_buy_idr_g)/100):rate.customer_buy_idr_g;
-    const sellDefault=isRawHundredth?(rate.customer_sell_entered ?? Number(rate.customer_sell_idr_g)/100):rate.customer_sell_idr_g;
-    if(type==='BUY' && !$('txPrice').dataset.touched) $('txPrice').value=buyDefault;
-    if(type==='SELL' && !$('txPrice').dataset.touched) $('txPrice').value=sellDefault;
-  }
+  else {$('txHint').textContent=asset==='GOLD'?'Gunakan harga eksekusi aktual dari penyedia tempat kamu membeli/menjual emas; quote spot dashboard hanya benchmark dan tidak mewakili harga Tring!.':'Gunakan harga eksekusi dari riwayat Pluang dan kurs IDR/USD yang berlaku saat transaksi.';}
   if(asset==='SPY'){
     const fx=state.market?.fx;
     if(fx?.status==='ok'&&fx.price&&(!$('txFx').value||$('txFx').value==='1'))$('txFx').value=fx.price;
@@ -509,6 +528,7 @@ function initEvents() {
   $('refreshBtn').addEventListener('click',()=>refreshAll(true,true));
   $('refreshMarketBtn').addEventListener('click',()=>refreshAll(true,true));
   $('spyChartRange')?.addEventListener('change',()=>loadHistories(true));
+  $('goldChartRange')?.addEventListener('change',()=>loadHistories(true));
   $('addTxTop').addEventListener('click',()=>openModal('transactionModal'));
   $('addTxEmpty')?.addEventListener('click',()=>openModal('transactionModal'));
   $('txType').addEventListener('change',()=>{$('txPrice').dataset.touched='';updateTxFields();});$('txAsset').addEventListener('change',()=>{$('txPrice').dataset.touched='';updateTxFields();});
@@ -516,7 +536,6 @@ function initEvents() {
   $('txPrice').addEventListener('input',()=>{$('txPrice').dataset.touched='1';});
   $('txFilter').addEventListener('change',applyTxFilter);$('globalSearch').addEventListener('input',applyTxFilter);
   $('transactionForm').addEventListener('submit',submitTransaction);
-  $('goldRateForm').addEventListener('submit',submitGoldRate);
   $('goalForm').addEventListener('submit',submitGoal);
   document.body.addEventListener('click', async e=>{
     const dynamicOpen=e.target.closest('[data-open]');
@@ -577,12 +596,6 @@ async function submitTransaction(e) {
   } catch(err){toast(err.message,'error');}
   finally{btn.disabled=false;btn.textContent=$('txId').value?'Simpan perubahan':'Simpan transaksi';}
 }
-async function submitGoldRate(e) {
-  e.preventDefault();
-  const payload={customer_buy_price:Number($('goldBuyInput').value),customer_sell_price:Number($('goldSellInput').value),quote_unit:$('goldQuoteUnit').value,captured_at:localDateToISO($('goldCapturedAt').value),source:'Tring! by Pegadaian (input manual)',notes:$('goldNotes').value.trim()};
-  try{await api('/api/market/pegadaian',{method:'POST',body:JSON.stringify(payload)});closeModal('goldRateModal');$('goldRateForm').reset();$('goldCapturedAt').value=localDatetimeInput();toast('Harga Pegadaian tersimpan dan masuk histori.','success');await refreshAll();}
-  catch(err){toast(err.message,'error');}
-}
 async function submitGoal(e) {
   e.preventDefault();
   const goalId=$('goalId').value.trim();
@@ -596,9 +609,9 @@ async function submitGoal(e) {
   finally{button.disabled=false;}
 }
 
-window.addEventListener('resize',()=>{if(state.goldHistory.length)drawLineChart('goldHistoryChart',state.goldHistory,'customer_sell_idr_g','#f1bd4c','1M');if(state.spyHistory.length)drawLineChart('spyHistoryChart',state.spyHistory,'price','#479cff',state.spyChartRange);});
+window.addEventListener('resize',()=>{if(state.goldHistory.length)drawLineChart('goldHistoryChart',state.goldHistory,'price','#f1bd4c',state.goldChartRange);if(state.spyHistory.length)drawLineChart('spyHistoryChart',state.spyHistory,'price','#479cff',state.spyChartRange);});
 initEvents();
-$('txDate').value=localDatetimeInput();$('goldCapturedAt').value=localDatetimeInput();updateTxFields();
+$('txDate').value=localDatetimeInput();updateTxFields();
 refreshAll();
 // UI can refresh more frequently than source providers; provider cache and market-session permissions control actual upstream requests.
 setInterval(()=>refreshAll(false),30000);
