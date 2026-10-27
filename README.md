@@ -5,81 +5,90 @@
 [![SQLite](https://img.shields.io/badge/SQLite-database-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Lisensi MIT](https://img.shields.io/badge/Lisensi-MIT-green.svg)](LICENSE)
 
-**WealthPilot adalah proyek portofolio personal finance dashboard yang membantu pengguna memisahkan modal asli, nilai pasar, dan keuntungan/kerugian investasi.** Aplikasi dirancang untuk penggunaan pribadi di komputer lokal, terutama untuk orang dengan pendapatan yang tidak selalu sama setiap bulan.
+**WealthPilot adalah dashboard personal finance dan investasi** untuk memisahkan modal yang disetor, nilai pasar terkini, serta keuntungan atau kerugian. Aplikasi ini dirancang untuk penggunaan pribadi di komputer lokal, khususnya bagi orang dengan pendapatan freelance yang tidak selalu sama setiap bulan.
 
-> **Status sumber data:** harga Tabungan Emas Pegadaian diinput dari informasi aktual yang terlihat pada aplikasi Tring! by Pegadaian. Harga SPY dan kurs USD/IDR diambil dari Twelve Data jika API key, akses instrumen, serta izin penggunaan data tersedia. Aplikasi ini belum terhubung langsung ke akun Pegadaian maupun Pluang dan bukan aplikasi trading.
+> **Sumber harga saat ini:** quote emas spot global XAU dalam USD/troy ounce dari [Standard Bullion](https://standardbullion.com/gold-price-api), dengan harga `ask` dan `bid`, lalu dikonversi menjadi estimasi rupiah per gram memakai kurs USD/IDR dari Twelve Data. SPY dan kurs USD/IDR menggunakan Twelve Data jika API key, akses instrumen, dan izin datanya tersedia. Harga emas spot ini **bukan harga resmi Tabungan Emas Pegadaian** dan bukan janji harga transaksi di Indonesia.
 
 ## Daftar isi
 
 - [Tujuan proyek](#tujuan-proyek)
-- [Fitur](#fitur)
-- [Cara perhitungan](#cara-perhitungan)
-- [Sumber dan kesegaran data](#sumber-dan-kesegaran-data)
+- [Fitur utama](#fitur-utama)
+- [Cara menghitung portofolio](#cara-menghitung-portofolio)
+- [Harga emas spot: harga beli dan jual](#harga-emas-spot-harga-beli-dan-jual)
+- [SPY dan kurs USD/IDR](#spy-dan-kurs-usdidr)
 - [Teknologi](#teknologi)
 - [Instalasi di Windows](#instalasi-di-windows)
-- [Menjalankan pengujian](#menjalankan-pengujian)
-- [API yang tersedia](#api-yang-tersedia)
+- [Pengujian](#pengujian)
+- [Endpoint API](#endpoint-api)
+- [Pemecahan masalah](#pemecahan-masalah)
 - [Keamanan dan privasi](#keamanan-dan-privasi)
-- [Rencana pengembangan](#rencana-pengembangan)
+- [Pengembangan berikutnya](#pengembangan-berikutnya)
 - [Portofolio GitHub dan LinkedIn](#portofolio-github-dan-linkedin)
 
 ## Tujuan proyek
 
-WealthPilot dikembangkan untuk menyelesaikan masalah pencatatan keuangan yang umum terjadi:
+WealthPilot membantu pengguna menjawab beberapa pertanyaan dasar: berapa modal bersih yang sudah disetorkan, berapa estimasi nilai aset sekarang, berapa keuntungan atau kerugian, seberapa baru harga yang digunakan, dan bagaimana perkembangan target keuangan yang dibuat sendiri.
 
-1. Modal yang disetorkan sering tercampur dengan kenaikan atau penurunan harga aset.
-2. Harga pasar tidak berguna jika sumber dan waktu pembaruannya tidak jelas.
-3. Pendapatan freelance yang tidak menentu membutuhkan alokasi yang fleksibel, bukan kewajiban investasi bulanan.
-4. Pengguna perlu membuat target keuangan sendiri tanpa menu tetap seperti rumah atau pernikahan.
-5. Harga yang tidak tersedia tidak boleh dianggap nol karena akan menghasilkan valuasi yang menyesatkan.
+Prinsip utamanya:
 
-## Fitur
+1. Setoran modal tidak boleh salah dihitung sebagai keuntungan.
+2. Harga pasar selalu ditampilkan bersama sumber, timestamp, dan status kesegaran bila tersedia.
+3. Pendapatan yang tidak menentu tidak dipaksa menjadi komitmen pembelian bulanan.
+4. Target keuangan bersifat bebas, tidak dikunci pada kategori rumah atau pernikahan.
+5. Harga yang tidak tersedia tidak boleh diubah menjadi nol atau angka rekaan.
+6. Quote pasar digunakan untuk estimasi; transaksi tetap dicatat memakai harga eksekusi sebenarnya.
 
-- **Ringkasan portofolio:** modal bersih, nilai portofolio, kas, P/L total, P/L terealisasi, dan P/L belum terealisasi.
-- **Ledger transaksi:** setoran, penarikan, saldo awal aset, pembelian, penjualan, biaya, dividen/pendapatan kas, serta koreksi transaksi dengan validasi ulang urutan ledger.
-- **Tabungan Emas Pegadaian:** simpan harga beli nasabah dan harga jual kembali dari Tring!, satuan harga, sumber, catatan, timestamp, serta histori snapshot.
-- **SPY dan USD/IDR:** quote intraday melalui Twelve Data ketika API dan paket data mengizinkan.
-- **Grafik SPY:** candle historis asli dari endpoint `time_series` Twelve Data dengan rentang 1 hari (1 menit), 5 hari (5 menit), 1 bulan (harian), dan 1 tahun (harian). Candle disimpan ke SQLite agar grafik tetap dapat ditinjau saat provider tidak tersedia, dengan status stale yang jelas.
-- **Grafik Pegadaian:** hanya memakai snapshot harga jual kembali yang dimasukkan dari Tring!; ini bukan koneksi akun Pegadaian otomatis.
-- **Persentase kenaikan/penurunan:** SPY memakai perubahan yang diberikan provider; emas membandingkan snapshot Pegadaian terbaru dengan snapshot sebelumnya yang dicatat.
-- **Status data:** harga baru, tersimpan dari database, belum dikonfigurasi, atau tidak tersedia ditangani secara terpisah.
-- **Grafik histori:** dibangun dari snapshot yang benar-benar tersimpan, bukan data contoh.
-- **Target keuangan fleksibel:** pengguna dapat membuat, mengubah, dan menghapus target dengan nama, nominal, progres awal, catatan, dan tanggal target sendiri.
-- **Arus kas dan komposisi portofolio.**
-- **Ekspor riwayat transaksi ke CSV** untuk analisis spreadsheet, serta **cadangan JSON seluruh data lokal** (transaksi, target, snapshot Pegadaian, dan histori pasar).
-- **Pengujian otomatis** untuk perhitungan, validasi transaksi, harga pasar, target, dan ekspor.
-- **GitHub Actions** untuk menjalankan tes pada beberapa versi Python.
+## Fitur utama
 
-## Cara perhitungan
+- **Ringkasan portofolio:** modal bersih, kas dalam ledger, nilai pasar, P/L terealisasi, dan P/L belum terealisasi.
+- **Ledger transaksi:** setoran, penarikan, saldo awal aset, pembelian, penjualan, biaya, dan dividen dengan validasi kas dan kuantitas.
+- **Market Monitor emas:** live dealer quote XAU `ask` dan `bid` dalam USD/troy ounce, estimasi harga beli/jual IDR per gram, perubahan harian dari provider, timestamp, status data, dan atribusi sumber.
+- **Grafik emas:** histori spot XAU; harga historis USD/oz dikonversi ke IDR/gram menggunakan kurs USD/IDR terbaru dan diberi keterangan bahwa kurs historis tidak diterapkan.
+- **SPY dan USD/IDR:** quote dan grafik candle historis melalui Twelve Data, mengikuti kuota, hak akses, serta lisensi dari akun pengguna.
+- **Rentang grafik:** emas 24 jam, 7 hari, 1 bulan, dan 1 tahun; SPY 1 hari, 5 hari, 1 bulan, dan 1 tahun.
+- **Kesegaran data:** cache, timestamp, fallback histori lokal yang diberi label basi, dan pesan kegagalan provider.
+- **Target keuangan fleksibel:** buat, ubah, dan hapus target dengan nama, nominal, progres, tanggal, serta catatan sendiri.
+- **Arus kas dan komposisi aset.**
+- **Ekspor transaksi CSV** dan **cadangan JSON** untuk data lokal.
+- **Pengujian otomatis** dan GitHub Actions.
 
-### Istilah utama
+## Cara menghitung portofolio
 
 | Istilah | Makna |
 |---|---|
-| Modal bersih | Setoran eksternal + dasar modal saldo awal aset − penarikan eksternal. Setoran baru tidak dicatat sebagai keuntungan. |
-| Saldo kas portofolio | Kas yang tercatat di ledger setelah pembelian, penjualan, dividen, setoran, dan penarikan. Ini bukan saldo semua rekening bank pengguna. |
-| Nilai portofolio | Kas portofolio + estimasi nilai pasar semua aset yang bisa dinilai. |
+| Modal bersih | Setoran eksternal + dasar modal saldo awal aset − penarikan eksternal. Setoran baru bukan keuntungan. |
+| Saldo kas portofolio | Kas yang tercatat di ledger setelah setoran, penarikan, pembelian, penjualan, dan dividen. Ini bukan saldo seluruh rekening bank. |
+| Nilai portofolio | Saldo kas + estimasi nilai pasar aset yang bisa dinilai. |
 | P/L belum terealisasi | Nilai pasar aset yang masih dimiliki − dasar modal aset yang tersisa. |
-| P/L terealisasi | Hasil penjualan bersih dibandingkan dasar modal unit yang dijual, ditambah pendapatan dividen yang dicatat. |
-| P/L total | Nilai portofolio − modal bersih, ketika valuasi semua kepemilikan lengkap. |
+| P/L terealisasi | Hasil penjualan bersih dibanding dasar modal unit yang dijual, ditambah pendapatan dividen yang dicatat. |
+| P/L total | Nilai portofolio − modal bersih, hanya bila valuasi aset lengkap. |
 
-Dasar modal penjualan menggunakan metode rata-rata tertimbang. Biaya transaksi masuk ke dasar modal pembelian atau mengurangi hasil penjualan. Untuk emas, valuasi menggunakan harga jual kembali Pegadaian karena itulah harga yang lebih relevan untuk memperkirakan penerimaan jika saldo dijual kembali.
+Dasar modal penjualan menggunakan metode rata-rata tertimbang. Biaya transaksi dimasukkan ke dasar modal pembelian atau mengurangi hasil penjualan. Setiap transaksi pembelian atau penjualan sebaiknya menggunakan harga eksekusi yang tercatat pada aplikasi tempat transaksi dilakukan, bukan harga benchmark pasar semata.
 
-### Contoh satuan harga emas
+## Harga emas spot: harga beli dan jual
 
-Jika Tring! menampilkan harga per 0,01 gram, masukkan satuan **per 0,01 gram** pada formulir harga. Sistem menyimpan harga yang dinormalisasi ke rupiah per gram untuk perhitungan, sekaligus mempertahankan angka mentah yang dimasukkan. Kuantitas aset emas di ledger dicatat dalam gram.
+WealthPilot memakai feed publik [Standard Bullion Gold Price API](https://standardbullion.com/gold-price-api). Feed memberi dua harga dalam USD per troy ounce:
 
-## Sumber dan kesegaran data
+- **Ask — harga indikatif beli:** harga acuan saat membeli emas dari dealer sumber.
+- **Bid — harga indikatif jual:** harga acuan yang dealer sumber bayar saat membeli emas dari pengguna.
 
-### Tabungan Emas Pegadaian / Tring!
+Harga IDR per gram dihitung dengan rumus:
 
-Versi ini tidak melakukan login otomatis atau membaca saldo dari akun pribadi. Salin harga beli dan harga jual kembali yang benar-benar terlihat pada Tring!, pilih satuan yang benar, lalu simpan waktu pengamatan. Persentase perubahannya adalah selisih antara snapshot yang berurutan, **bukan jaminan perubahan harian real-time**. Untuk menghindari penyamaan produk, jangan mengganti harga Tabungan Emas Pegadaian dengan harga spot emas internasional atau harga emas fisik produk lain.
+```text
+harga IDR/gram = harga USD/troy ounce × kurs IDR per USD ÷ 31,1034768
+```
 
-Referensi publik Pegadaian: [informasi harga emas](https://pegadaian.co.id/harga-emas) dan [layanan Tabungan Emas](https://pegadaian.co.id/emas/tabungan-emas). Harga yang ditampilkan akun/aplikasi bisa memiliki konteks produk dan ketentuan tersendiri.
+Standard Bullion menyebut feed live diperbarui saat pasar aktif dan cache endpoint sekitar 15 detik; rentang histori intraday dipublikasikan pada granularitas 15 menit. WealthPilot meng-cache quote lokal dengan nilai bawaan 30 detik dan melakukan polling dari dashboard setiap 30 detik. Karena itu, fitur ini adalah **pemantauan harga spot mendekati real-time**, bukan streaming tick-by-tick yang dijamin.
 
-### SPY dan USD/IDR
+**Penting:** angka ini merupakan harga spot/dealer internasional, bukan harga jual/buyback resmi Tabungan Emas Pegadaian atau harga pasti di Pluang. Harga lokal dapat berbeda karena kurs, premi produk, spread, pajak, serta biaya. Harga bid digunakan untuk memperkirakan nilai yang mungkin diterima saat menjual berdasarkan benchmark spot, bukan untuk menjamin jumlah pencairan sebenarnya.
 
-Tambahkan API key pribadi pada file `.env` (cache quote SPY bawaan 60 detik, histori grafik 60 detik, dan FX 900 detik; sesuaikan dengan kuota paketmu):
+Grafik historis provider hanya memberi seri harga spot USD/oz. Agar dapat digambar dalam rupiah, WealthPilot mengonversi titik historis menggunakan kurs USD/IDR **terkini**; histori harga IDR karenanya merupakan estimasi dan bukan rekonstruksi historis kurs-per-waktu. Jika quote kurs tidak tersedia, sistem tidak menciptakan harga IDR.
+
+Atribusi `Data by Standard Bullion` beserta tautan sumber harus tetap terlihat di antarmuka. Endpoint publik emas tidak membutuhkan API key menurut dokumentasi penyedia, tetapi aturan akses, batas permintaan, dan persyaratan atribusi tetap perlu dihormati. API ini digunakan sebagai sumber harga pasar, bukan integrasi akun pribadi.
+
+## SPY dan kurs USD/IDR
+
+Buat file `.env` dari `.env.example`, lalu isi API key Twelve Data milikmu:
 
 ```dotenv
 TWELVE_DATA_API_KEY=masukkan_api_key_milikmu
@@ -88,21 +97,22 @@ USDIDR_CACHE_SECONDS=900
 SPY_QUOTE_INTERVAL=1min
 USDIDR_QUOTE_INTERVAL=1min
 SPY_SERIES_CACHE_SECONDS=60
+GOLD_CACHE_SECONDS=30
+GOLD_SERIES_CACHE_SECONDS=60
 ```
 
-WealthPilot menggunakan dua endpoint resmi Twelve Data: [`/quote`](https://twelvedata.com/docs#quote) untuk quote dan perubahan yang disediakan provider, serta [`/time_series`](https://twelvedata.com/docs#time-series) untuk candle historis yang benar-benar digambar pada grafik. Endpoint grafik lokal adalah `/api/market/series/SPY?range=1D`; parameter rentang yang didukung adalah `1D`, `5D`, `1M`, dan `1Y`. Tombol refresh meminta data baru melewati cache server. Grafik menampilkan jumlah candle, interval, perubahan dari candle awal ke candle akhir pada rentang yang dipilih, harga close candle terakhir, waktu candle, serta status respons.
+WealthPilot memakai endpoint [`/quote`](https://twelvedata.com/docs#quote) dan [`/time_series`](https://twelvedata.com/docs#time-series). Grafik SPY tersedia melalui `/api/market/series/SPY?range=1D` dengan rentang `1D`, `5D`, `1M`, dan `1Y`. Quote USD/IDR juga dipakai untuk mengonversi harga emas spot serta nilai SPY ke rupiah.
 
-**Data “real-time” bergantung pada paket, lisensi, bursa, hak tampilan, serta kuota API key kamu.** WealthPilot melakukan polling dan cache, bukan streaming tick-by-tick. Respons provider yang berhasil juga tidak otomatis berarti harganya live; periksa timestamp candle/quote dan ketentuan paket di akun Twelve Data. Bila provider gagal, aplikasi boleh menampilkan histori lokal yang ditandai basi, tetapi tidak membuat titik harga palsu.
-
-Nilai SPY dalam IDR merupakan estimasi harga SPY dalam USD dikalikan quote USD/IDR. Nilai itu bisa berbeda dari harga eksekusi dan kurs transaksi Pluang, biaya, spread, pajak, serta konversi aktual.
+Harga SPY real-time/tertunda, akses instrumen, jumlah permintaan, dan hak tampilan bergantung pada paket serta lisensi API key. WealthPilot menggunakan polling dan cache, bukan streaming tick-by-tick. Nilai SPY dalam IDR adalah estimasi berdasarkan quote SPY dan USD/IDR, bukan nilai eksekusi aktual dari Pluang.
 
 ## Teknologi
 
-- **Backend:** Python, FastAPI, Pydantic, HTTPX
+- **Backend:** Python 3.10+, FastAPI, Pydantic, HTTPX
 - **Database:** SQLite
 - **Frontend:** HTML, CSS, JavaScript
-- **Data pasar:** Twelve Data untuk SPY dan USD/IDR; snapshot harga Pegadaian dimasukkan manual
-- **Pengujian:** `unittest`, `TestClient` FastAPI
+- **Data emas:** Standard Bullion public spot quote dan histori XAU
+- **Data SPY/FX:** Twelve Data
+- **Pengujian:** `unittest`, FastAPI `TestClient`
 - **CI:** GitHub Actions
 
 ## Instalasi di Windows
@@ -111,14 +121,14 @@ Nilai SPY dalam IDR merupakan estimasi harga SPY dalam USD dikalikan quote USD/I
 
 1. Pasang Python 3.10 atau yang lebih baru.
 2. Ekstrak proyek atau clone repository.
-3. Buka folder `wealthpilot` di File Explorer.
+3. Buka folder proyek di File Explorer.
 4. Jalankan `run.bat`.
 5. Buka [http://127.0.0.1:8000](http://127.0.0.1:8000).
-6. Untuk harga SPY dan USD/IDR, isi `TWELVE_DATA_API_KEY` di file `.env`, lalu tutup dan jalankan ulang aplikasi.
-7. Pada menu **Pengaturan data**, salin harga beli serta harga jual kembali dari Tring! by Pegadaian.
-8. Catat saldo awal atau transaksi aktual sebelum menggunakan angka untuk memahami kondisi portofolio pribadi.
+6. Isi `TWELVE_DATA_API_KEY` di `.env` agar SPY dan konversi USD/IDR tersedia; hentikan dan jalankan ulang server sesudah mengubah `.env`.
+7. Harga emas spot dapat diminta dari Standard Bullion tanpa API key khusus emas. Konversi IDR/gram tetap memerlukan quote USD/IDR yang valid dari Twelve Data.
+8. Masukkan saldo awal atau transaksi aktual sebelum menggunakan ringkasan untuk menilai portofolio pribadi.
 
-Jika `.env` sudah ada, jangan timpa file tersebut karena mungkin sudah berisi API key.
+Jika `.env` sudah ada, jangan menimpanya karena bisa berisi API key milikmu.
 
 ### Instalasi manual melalui PowerShell
 
@@ -131,85 +141,89 @@ if (!(Test-Path .env)) { Copy-Item .env.example .env }
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Jika PowerShell melarang aktivasi virtual environment, pelajari kebijakan eksekusi pada komputer sendiri atau jalankan perintah Python secara langsung dari `.venv`. Hentikan server dengan `Ctrl+C`.
+Jika PowerShell melarang aktivasi virtual environment, periksa kebijakan eksekusi di komputermu atau jalankan Python dari `.venv`. Hentikan server dengan `Ctrl+C`.
 
-
-## Memecahkan masalah Market Monitor
-
-1. **Pastikan API key sudah dibaca aplikasi.** Buka `http://127.0.0.1:8000/api/health`. Field `twelve_data_configured` harus bernilai `true`. Jika baru mengubah `.env`, hentikan server dengan `Ctrl+C` lalu jalankan kembali `run.bat`.
-2. **Periksa quote.** Buka `http://127.0.0.1:8000/api/market`. Lihat `spy.status`, `spy.message`, `fx.status`, dan timestamp. `not_configured` berarti API key belum terbaca; `error` berarti provider tidak memberikan quote yang valid; `stale` berarti aplikasi memakai quote lama.
-3. **Periksa seri grafik.** Buka `http://127.0.0.1:8000/api/market/series/SPY?range=1D&force=true`. Respons yang sehat memuat `status: "ok"`, `item_count` lebih dari satu, serta `items` dengan `datetime` dan `close`/`price`. Kalau `items` kosong, baca `message` untuk mengetahui apakah key, kuota, paket, atau izin instrumen bermasalah.
-4. **Jika browser masih menampilkan UI lama**, tutup tab lalu buka lagi dan tekan `Ctrl+F5`. Berkas CSS dan JavaScript memiliki penanda versi untuk membantu browser mengambil file baru.
-5. **Grafik emas tidak otomatis berisi histori.** Catat harga beli dan harga jual kembali yang terlihat di Tring! pada dua waktu berbeda. Grafik hanya memakai snapshot Pegadaian yang sungguh-sungguh disimpan; aplikasi tidak menyamakannya dengan harga spot emas internasional.
-6. **Perbedaan waktu tidak selalu kesalahan aplikasi.** SPY tidak diperdagangkan sepanjang hari, dan API dapat menyediakan data tertunda. Bandingkan waktu quote/candle dengan paket serta lisensi data Twelve Data. WealthPilot tidak menjanjikan streaming tick-by-tick.
-
-Jangan pernah mengirim API key atau file `.env` kepada orang lain untuk proses diagnosis. Jika butuh bantuan, bagikan hanya pesan error yang sudah dibersihkan dari kredensial pribadi.
-
-## Menjalankan pengujian
+## Pengujian
 
 ```powershell
 python -m unittest discover -s tests -v
+node --check app/static/app.js
+python -m py_compile app/main.py
 ```
 
-Tes menggunakan data sintetis di database sementara; tes tidak mengisi aset contoh ke database pribadi WealthPilot. Saat ada perubahan, jalankan tes sebelum commit dan pastikan `git status` tidak menampilkan `.env` atau database lokal.
+Tes memakai data dan database sementara; tes tidak mengisi aset contoh ke database pribadimu. Jalankan pengujian sebelum membuat commit.
 
-## API yang tersedia
+## Endpoint API
 
-Dokumentasi interaktif FastAPI tersedia saat server berjalan: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+Dokumentasi interaktif FastAPI tersedia di [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) ketika aplikasi berjalan.
 
 | Endpoint | Fungsi |
 |---|---|
 | `GET /api/health` | Status aplikasi dan konfigurasi sumber data |
-| `GET /api/overview` | Ringkasan portofolio, harga, target, dan transaksi terakhir |
-| `GET /api/market` | Snapshot harga dan status provider |
-| `POST /api/market/pegadaian` | Simpan harga beli/jual kembali Pegadaian yang diinput pengguna |
-| `GET /api/market/pegadaian/history` | Histori harga Pegadaian yang direkam |
-| `GET /api/market/history/{symbol}` | Histori quote SPY atau USD/IDR yang disimpan |
-| `GET /api/market/series/SPY?range=1D` | Candle historis SPY dari Twelve Data (`1D`, `5D`, `1M`, `1Y`) untuk grafik |
+| `GET /api/overview` | Ringkasan portofolio, harga, target, dan transaksi terbaru |
+| `GET /api/market` | Quote XAU bid/ask, quote SPY, kurs USD/IDR, dan status provider |
+| `GET /api/market/gold/series?range=1D` | Histori emas spot XAU dikonversi ke IDR/gram; rentang `1D`, `5D`, `1M`, `1Y` |
+| `GET /api/market/series/SPY?range=1D` | Candle historis SPY dari Twelve Data |
+| `GET /api/market/history/{symbol}` | Snapshot tersimpan untuk SPY atau USD/IDR |
+| `GET /api/market/pegadaian/history` | Histori manual lama, jika data Pegadaian pernah dicatat; tidak digunakan sebagai live feed utama |
+| `POST /api/market/pegadaian` | Endpoint kompatibilitas untuk menyimpan snapshot manual lama; tidak dipakai Market Monitor spot |
 | `GET /api/transactions` | Daftar transaksi |
 | `POST /api/transactions` | Validasi dan catat transaksi |
-| `PUT /api/transactions/{id}` | Ubah transaksi dan validasi ulang seluruh ledger |
+| `PUT /api/transactions/{id}` | Ubah transaksi dan validasi ulang ledger |
 | `DELETE /api/transactions/{id}` | Hapus transaksi jika sisa ledger tetap valid |
 | `GET /api/export/transactions.csv` | Unduh transaksi sebagai CSV |
-| `GET /api/export/backup.json` | Unduh cadangan seluruh tabel aplikasi dalam JSON |
+| `GET /api/export/backup.json` | Unduh cadangan tabel lokal sebagai JSON |
 | `GET /api/goals` | Daftar target keuangan |
 | `POST /api/goals` | Buat target |
 | `PUT /api/goals/{id}` | Ubah target |
 | `DELETE /api/goals/{id}` | Hapus target |
 
+## Pemecahan masalah Market Monitor
+
+1. **Periksa konfigurasi:** buka `http://127.0.0.1:8000/api/health`. `twelve_data_configured` harus `true` untuk SPY dan konversi USD/IDR. Feed emas spot tidak memerlukan API key terpisah.
+2. **Periksa quote:** buka `http://127.0.0.1:8000/api/market`. Lihat status, pesan, harga, dan timestamp untuk `gold`, `spy`, dan `fx`.
+3. **Periksa grafik emas:** buka `http://127.0.0.1:8000/api/market/gold/series?range=1D&force=true`. Respons sukses berisi `status: "ok"`, `item_count`, dan `items`. Jika FX tidak tersedia, harga IDR/gram tidak dibuat-buat.
+4. **Periksa grafik SPY:** buka `http://127.0.0.1:8000/api/market/series/SPY?range=1D&force=true`. Respons sukses memuat `items` berisi timestamp dan harga candle. Error bisa disebabkan API key, kuota, paket, izin simbol, atau jaringan.
+5. **Harga berubah lambat:** harga spot diperbarui ketika pasar emas internasional aktif; saat pasar tutup, timestamp quote terakhir dapat tetap sama. Grafik historis intraday memiliki granularitas 15 menit, tidak setiap detik.
+6. **Quote basi:** jika provider gagal, histori lokal bisa ditampilkan dengan status `stale`. Periksa pesan provider dan timestamp sebelum menganggapnya sebagai harga terbaru.
+7. **Browser masih menampilkan file lama:** tekan `Ctrl+F5` untuk memuat ulang CSS dan JavaScript.
+
+Jangan membagikan API key atau file `.env`. Saat meminta bantuan, kirim pesan error yang sudah dibersihkan dari rahasia.
+
 ## Pencadangan
 
-Di menu **Pengaturan data**, pilih **Cadangkan seluruh data** untuk mengunduh JSON berisi tabel transaksi, target keuangan, snapshot harga Pegadaian, dan snapshot market-data. Endpoint ini tidak menyertakan `.env` atau API key. Berkas cadangan tetap merupakan data keuangan pribadi, sehingga simpan secara aman dan jangan masukkan ke repository publik. Fitur ini adalah ekspor; proses impor/pemulihan otomatis belum tersedia.
+Di menu **Pengaturan data**, gunakan **Cadangkan seluruh data** untuk mengunduh JSON berisi transaksi, target, snapshot pasar, candle SPY, dan tabel snapshot Pegadaian manual lama jika ada. File cadangan merupakan data keuangan pribadi; simpan aman dan jangan masukkan ke repository publik. Fitur ekspor tersedia, sedangkan impor/pemulihan otomatis belum tersedia.
 
 ## Keamanan dan privasi
 
-- Aplikasi secara default hanya mendengarkan `127.0.0.1` di komputer lokal.
-- File `.env`, database SQLite, log, riwayat transaksi, berkas cadangan JSON, dan tangkapan layar pribadi tidak boleh diunggah ke GitHub.
-- Jangan memasukkan password, PIN, OTP, cookie, atau token sesi Pegadaian/Pluang ke aplikasi.
-- Jangan mengekspos server ke internet atau LAN tanpa autentikasi, otorisasi, HTTPS, backup, pembatasan akses, dan peninjauan keamanan.
-- API key Twelve Data disimpan di `.env`, bukan di JavaScript atau HTML.
-- Data market pihak ketiga memiliki aturan lisensi; jangan memublikasikan atau mendistribusikan ulang quote tanpa hak yang sesuai.
+- Aplikasi secara default mendengarkan `127.0.0.1` di komputer lokal.
+- Jangan mengunggah `.env`, database SQLite, catatan transaksi, log, file cadangan, atau tangkapan layar yang menampilkan saldo pribadi.
+- Jangan memasukkan password, PIN, OTP, cookie, atau token sesi Pegadaian/Pluang.
+- Jangan mengekspos server ke internet/LAN tanpa autentikasi, HTTPS, pembatasan akses, backup, dan peninjauan keamanan.
+- API key Twelve Data hanya disimpan di `.env`, bukan di HTML atau JavaScript.
+- Harga dan data pihak ketiga tetap tunduk pada batas serta lisensi penyedianya; atribusi Standard Bullion harus dipertahankan.
 
 Lihat [SECURITY.md](SECURITY.md).
 
-## Rencana pengembangan
+## Pengembangan berikutnya
 
 - [x] Pisahkan modal bersih dari nilai pasar dan P/L.
-- [x] Validasi urutan transaksi untuk mencegah pembelian atau penjualan yang tidak didukung ledger.
-- [x] Harga Pegadaian dengan satuan yang dinormalisasi dan timestamp.
-- [x] Quote SPY/USD/IDR dengan cache, timestamp quote terakhir, dan fallback snapshot basi.
+- [x] Validasi saldo kas dan kuantitas transaksi.
+- [x] Quote emas spot bid/ask dan harga estimasi IDR/gram.
+- [x] Grafik histori XAU dan SPY dengan timestamp serta status data.
+- [x] Quote SPY/USD/IDR dengan cache dan fallback data basi yang diberi label.
 - [x] CRUD target keuangan bebas.
-- [x] Ekspor ledger ke CSV dan cadangan JSON seluruh data.
-- [x] Tes otomatis untuk alur utama dan sumber data.
+- [x] Ekspor ledger CSV dan cadangan JSON.
+- [x] Tes otomatis untuk alur inti dan sumber data.
 - [ ] Impor CSV dengan pemeriksaan dan pratinjau rekonsiliasi.
-- [ ] Koreksi transaksi dengan jejak audit.
-- [ ] Autentikasi jika suatu saat dibuat versi multi-pengguna atau hosting.
-- [ ] Evaluasi integrasi Pegadaian resmi jika dokumentasi API publik dan izin akses yang sesuai tersedia.
+- [ ] Jejak audit untuk koreksi transaksi.
+- [ ] Autentikasi bila kelak dikembangkan menjadi versi hosting multi-pengguna.
+- [ ] Pengujian koneksi harga pasar end-to-end secara berkala dengan API key dan jaringan pengguna.
 
 ## Portofolio GitHub dan LinkedIn
 
-Panduan langkah demi langkah untuk GitHub, commit berbahasa Indonesia, ringkasan proyek, serta posting LinkedIn berada di [docs/PANDUAN_GITHUB_LINKEDIN_ID.md](docs/PANDUAN_GITHUB_LINKEDIN_ID.md). Ringkasan portofolio awal juga ada di [docs/PORTFOLIO_GUIDE_ID.md](docs/PORTFOLIO_GUIDE_ID.md).
+Panduan repository, riwayat commit berbahasa Indonesia, serta deskripsi proyek untuk LinkedIn ada di [docs/PANDUAN_GITHUB_LINKEDIN_ID.md](docs/PANDUAN_GITHUB_LINKEDIN_ID.md) dan [docs/PORTFOLIO_GUIDE_ID.md](docs/PORTFOLIO_GUIDE_ID.md).
 
 ## Lisensi
 
-Proyek ini menggunakan [MIT License](LICENSE). Lisensi proyek tidak memberikan hak untuk mendistribusikan data pasar pihak ketiga.
+Proyek ini menggunakan [MIT License](LICENSE). Lisensi proyek tidak memberikan hak untuk mendistribusikan ulang data pasar pihak ketiga.

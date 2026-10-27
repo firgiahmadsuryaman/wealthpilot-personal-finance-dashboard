@@ -146,7 +146,7 @@ Ganti nama commit dengan perubahan yang benar-benar dibuat. Jika tidak ada file 
 
 **Deskripsi proyek untuk LinkedIn:**
 
-> Mengembangkan dashboard keuangan dan investasi pribadi menggunakan Python, FastAPI, SQLite, HTML, CSS, dan JavaScript. Aplikasi memisahkan modal bersih dari nilai pasar serta keuntungan/kerugian, mencatat transaksi dengan validasi saldo dan kuantitas, memantau quote SPY/USD/IDR melalui API market-data, menyimpan snapshot harga Tabungan Emas Pegadaian dari input Tring!, mengelola target keuangan fleksibel, dan mengekspor ledger ke CSV. Proyek dilengkapi pengujian otomatis dan dokumentasi. Integrasi harga Pegadaian masih berupa input manual; aplikasi berjalan lokal dan belum mengeksekusi transaksi.
+> Mengembangkan dashboard keuangan dan investasi pribadi menggunakan Python, FastAPI, SQLite, HTML, CSS, dan JavaScript. Aplikasi memisahkan modal bersih dari nilai pasar serta keuntungan/kerugian, mencatat transaksi dengan validasi saldo dan kuantitas, memantau quote SPY/USD/IDR melalui API market-data, memantau quote emas spot XAU bid/ask dari Standard Bullion yang dikonversi ke IDR/gram, mengelola target keuangan fleksibel, dan mengekspor ledger ke CSV. Proyek dilengkapi pengujian otomatis dan dokumentasi. Quote emas merupakan benchmark spot internasional, bukan harga resmi Pegadaian; aplikasinya berjalan lokal dan tidak mengeksekusi transaksi.
 
 ### Contoh post LinkedIn
 
@@ -156,7 +156,7 @@ Ganti nama commit dengan perubahan yang benar-benar dibuat. Jika tidak ada file 
 >
 > Teknologi: Python, FastAPI, SQLite, HTML, CSS, JavaScript, unittest, dan GitHub Actions.
 >
-> Saya juga menjaga batasan sumber data tetap jelas: harga Tabungan Emas Pegadaian dimasukkan dari snapshot aktual yang terlihat di Tring!, sedangkan quote SPY dan USD/IDR bergantung pada akses serta lisensi penyedia data. Proyek ini belum menjadi aplikasi trading dan belum terhubung langsung ke akun broker.
+> Saya juga menjaga batasan sumber data tetap jelas: harga emas diperoleh dari quote spot XAU bid/ask Standard Bullion, bukan harga resmi Tabungan Emas Pegadaian; quote SPY serta kurs USD/IDR bergantung pada akses dan lisensi penyedia data. Proyek ini belum menjadi aplikasi trading dan belum terhubung langsung ke akun broker.
 >
 > Repository: [tempel tautan GitHub]
 >

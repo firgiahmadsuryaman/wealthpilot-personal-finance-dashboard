@@ -2,79 +2,85 @@
 
 ## 1. Pernyataan produk
 
-WealthPilot adalah dashboard keuangan dan investasi pribadi yang membantu pengguna memahami uang yang telah dimasukkan, nilai aset saat ini, keuntungan/kerugian, kualitas data harga, dan perkembangan target keuangan.
+WealthPilot adalah dashboard keuangan dan investasi pribadi untuk memahami uang yang sudah disetorkan, nilai aset saat ini, keuntungan/kerugian, kualitas sumber harga, serta kemajuan menuju target keuangan.
 
 ## 2. Pengguna utama
 
-Versi awal ditujukan untuk satu pengguna yang mengelola penghasilan freelance tidak menentu, uang tunai, Tabungan Emas Pegadaian, ETF SPY, dan target keuangan pribadi. Produk ini local-first, bukan layanan multi-pengguna.
+Versi awal ditujukan untuk satu pengguna yang mengelola pendapatan freelance tidak menentu, uang kas, benchmark harga emas spot, ETF SPY, dan target keuangan yang dibuat sendiri. Produk ini local-first dan bukan layanan multi-pengguna.
 
 ## 3. Masalah yang ingin diselesaikan
 
 1. Modal sering dianggap sama dengan nilai investasi saat ini.
-2. Perubahan harga tidak bermakna bila sumber serta waktu pembaruan tidak terlihat.
-3. Penghasilan tidak menentu membuat komitmen investasi bulanan yang kaku kurang sesuai.
-4. Target keuangan perlu dapat dibuat pengguna sendiri, bukan dibatasi template tertentu.
-5. Harga yang hilang tidak boleh diganti angka nol.
-6. Transaksi harus ditolak jika membuat jumlah aset atau kas tidak masuk akal.
+2. Perubahan harga tidak berguna bila sumber dan timestamp tidak terlihat.
+3. Pendapatan tidak menentu membuat kewajiban investasi bulanan yang kaku kurang sesuai.
+4. Target keuangan seharusnya dapat dibuat pengguna sendiri.
+5. Harga yang hilang tidak boleh diganti nol atau angka rekaan.
+6. Transaksi perlu ditolak jika membuat kas atau kuantitas aset tidak masuk akal.
+7. Harga spot global tidak boleh digambarkan sebagai harga eksekusi lokal.
 
 ## 4. Prinsip produk
 
-- Ledger transaksi adalah sumber utama perhitungan portofolio.
-- Setoran, penarikan, pembelian, penjualan, dan nilai pasar dibedakan.
-- Semua angka harga membawa konteks sumber dan timestamp bila tersedia.
-- Harga manual diberi label sebagai snapshot manual.
-- Harga yang basi bisa ditampilkan untuk konteks, tetapi harus ditandai.
-- Target keuangan tidak dianggap sebagai saldo rekening atau investasi aktual tanpa rekonsiliasi eksplisit.
-- Aplikasi tidak meminta kredensial, PIN, OTP, atau token sesi aplikasi finansial lain.
-- Tidak ada pembelian/penjualan otomatis atau saran investasi yang dijamin.
+- Ledger transaksi adalah sumber utama modal, biaya, jumlah aset, dan P/L.
+- Setoran, penarikan, pembelian, penjualan, serta nilai pasar adalah konsep berbeda.
+- Setiap quote disertai sumber, timestamp, unit, dan status data bila tersedia.
+- Harga stale dapat ditampilkan untuk konteks, tetapi harus diberi label.
+- Ask dan bid harus diterangkan dari perspektif pengguna: ask = estimasi biaya membeli dari dealer sumber; bid = estimasi penerimaan ketika menjual ke dealer sumber.
+- Semua harga emas IDR bergantung pada quote USD/IDR yang valid; tanpa FX, sistem tidak membuat angka IDR.
+- Quote spot emas adalah benchmark global, bukan harga resmi Pegadaian/Pluang atau janji harga eksekusi di Indonesia.
+- Transaksi dicatat menggunakan harga aktual dari bukti transaksi; harga benchmark tidak otomatis dianggap sebagai harga transaksi.
+- Aplikasi tidak meminta kredensial akun keuangan dan tidak melakukan auto-buy/auto-sell.
 
 ## 5. Lingkup MVP
 
 - Pencatatan setoran, penarikan, saldo awal aset, pembelian, penjualan, biaya, dan dividen.
-- Ringkasan kas, modal bersih, nilai pasar bila lengkap, realized P/L, dan unrealized P/L.
-- Harga beli/jual kembali Tabungan Emas Pegadaian yang dimasukkan dari Tring! beserta histori.
-- Quote SPY dan USD/IDR dari provider yang dikonfigurasi.
-- Histori quote dan label kualitas data.
-- CRUD target keuangan bebas.
+- Ringkasan kas, modal bersih, nilai pasar, realized P/L, dan unrealized P/L.
+- Quote emas spot XAU bid/ask dan histori dari Standard Bullion.
+- Quote SPY dan kurs USD/IDR dari Twelve Data.
+- Timestamp, cache, status kesegaran, dan pesan kesalahan provider.
+- CRUD target keuangan generik.
 - Ringkasan arus kas serta komposisi aset.
-- Ekspor ledger CSV.
-- Pengujian dan workflow CI.
+- Ekspor ledger CSV dan cadangan JSON.
+- Tes otomatis dan workflow CI.
 
 ## 6. Di luar lingkup saat ini
 
-- Login atau sinkronisasi saldo otomatis ke Tring! atau Pluang.
-- Streaming harga tick-by-tick yang dijamin.
-- Eksekusi order trading atau auto-buy/auto-sell.
-- Multi-pengguna, penyimpanan cloud, atau pengelolaan akun pelanggan.
-- Rekonsiliasi otomatis target dengan saldo bank atau investasi.
-- Jaminan imbal hasil atau nasihat keuangan yang dipersonalisasi.
+- Integrasi login atau sinkronisasi saldo pribadi dari Tring! Pegadaian atau Pluang.
+- Harga beli dan buyback resmi Tabungan Emas Pegadaian secara otomatis.
+- Streaming tick-by-tick yang dijamin atau prediksi harga pasti.
+- Eksekusi order, auto-buy/auto-sell, atau saran imbal hasil terjamin.
+- Multi-pengguna, cloud sync, atau pengelolaan rekening pelanggan.
+- Rekonstruksi historis harga emas rupiah memakai histori USD/IDR pada setiap waktu historis.
 
 ## 7. Kontrak sumber data
 
-### Pegadaian
+### Emas spot XAU
 
-Pengguna mencatat harga beli nasabah dan harga jual kembali yang terlihat di Tring!, satuan harga yang tepat, serta waktu pengamatan. Valuasi menggunakan harga jual kembali. Data ini tidak dianggap feed kontinyu atau harga yang selalu berubah setiap detik.
+`Standard Bullion /spot-prices.json` menyediakan ask dan bid dalam USD/troy ounce serta timestamp dan perubahan hari ini. `ask` dipakai sebagai harga indikatif membeli dari dealer sumber, sementara `bid` sebagai harga indikatif menjual kembali ke dealer sumber. Kurs USD/IDR dari Twelve Data digunakan untuk estimasi IDR/gram. Atribusi `Data by Standard Bullion` harus ditampilkan.
+
+Sumber ini bukan harga resmi Tabungan Emas Pegadaian dan bukan jaminan harga eksekusi di Indonesia. Harga yang terlihat di Tring! dapat berbeda karena karakteristik produk, spread, premi, biaya, dan aturan penyedia.
 
 ### SPY dan USD/IDR
 
-Quote intraday diambil dari endpoint `/quote` Twelve Data saat API key dikonfigurasi. Grafik menggunakan candle asli dari endpoint `/time_series` dengan pilihan 1D (1 menit), 5D (5 menit), 1M (harian), dan 1Y (harian); grafik juga menunjukkan persentase perubahan dari candle pertama ke candle terakhir dalam rentang pilihan dan waktu candle terakhir. Candle disimpan dalam tabel `market_bars` dengan cache bawaan 60 detik agar histori dapat tersedia sebagai data stale ketika provider gagal. Endpoint `/api/market/series/SPY?range=1D&force=true` dapat dipakai untuk diagnosis. Akses, kedalaman histori, tingkat keterlambatan, interval pembaruan, dan izin display bergantung paket serta lisensi provider; aplikasi melakukan polling dan tidak menjamin streaming tick-by-tick. Nilai SPY dalam IDR adalah estimasi berdasarkan quote SPY dan quote USD/IDR, bukan harga eksekusi Pluang. Harga Tabungan Emas Pegadaian tetap berdasarkan snapshot dari Tring!, bukan harga spot emas global.
+Quote diambil dari Twelve Data setelah API key dikonfigurasi. Akses data, keterlambatan, jumlah request, dan izin tampilan mengikuti paket/lisensi pengguna. Nilai SPY dalam IDR hanyalah estimasi berdasarkan quote SPY dan USD/IDR.
 
-## 8. Aturan hitung
+## 8. Aturan perhitungan
 
 - Modal bersih = setoran eksternal + dasar modal aset saldo awal − penarikan eksternal.
 - Kas = setoran − penarikan − pembelian + hasil penjualan bersih + dividen bersih.
-- Dasar modal aset yang terjual dihitung dengan metode rata-rata tertimbang.
-- P/L belum terealisasi = nilai pasar terkini − dasar modal aset yang masih dimiliki.
-- P/L total hanya disajikan sebagai angka lengkap ketika semua aset yang dimiliki memiliki valuasi; harga yang hilang tidak otomatis diartikan nol.
-- Persentase emas membandingkan dua snapshot harga jual kembali yang tercatat berurutan. Persentase SPY mengikuti provider terhadap penutupan sebelumnya.
+- Dasar modal aset terjual menggunakan metode rata-rata tertimbang.
+- P/L belum terealisasi = nilai pasar aset yang dimiliki − dasar modal aset tersisa.
+- P/L total hanya disajikan jika valuasi semua kepemilikan cukup lengkap.
+- Emas dinilai dengan estimasi harga bid spot IDR/gram. Ini bukan harga buyback Pegadaian.
+- Harga transaksi tetap berasal dari transaksi aktual, bukan quote pasar yang ditampilkan.
+- Persentase perubahan spot XAU mengikuti `changeToday` provider dalam konteks XAU/USD; perubahan nilai aset dalam IDR juga dapat dipengaruhi perubahan USD/IDR.
 
 ## 9. Kriteria keberhasilan MVP
 
-- Instalasi baru tidak berisi saldo dan harga palsu.
+- Instalasi baru tidak memiliki saldo atau harga investasi contoh.
 - Modal, nilai pasar, dan P/L tampil terpisah.
-- Pembelian tanpa saldo kas tercatat dan penjualan melebihi kepemilikan ditolak.
-- Harga emas yang diinput per 0,01 gram dinormalisasi dengan benar.
-- Quote provider menggunakan timestamp quote terakhir jika tersedia; kegagalan provider tidak mengubah harga menjadi nol.
-- Pengguna dapat membuat, mengubah, dan menghapus target sendiri.
-- Ledger dapat diekspor ke CSV.
-- Tes inti berjalan sebelum commit dan otomatis pada GitHub Actions.
+- Feed emas menampilkan ask/bid, timestamp, atribusi, status, dan caveat sumber.
+- Perubahan harga emas tidak ditampilkan sebagai harga resmi Pegadaian.
+- Tanpa FX valid, aplikasi tidak membuat harga emas IDR.
+- Data stale tidak dilabeli real-time.
+- Pengguna dapat mengelola target sendiri.
+- Ledger dapat diekspor ke CSV dan tes inti dapat berjalan secara lokal maupun melalui CI.

@@ -8,7 +8,7 @@ Dokumen ini berisi teks ringkas untuk profil GitHub, LinkedIn, dan CV. Sesuaikan
 
 ## Deskripsi singkat repository
 
-> Dashboard keuangan dan investasi pribadi berbasis FastAPI untuk memisahkan modal bersih dari nilai pasar dan P/L, mencatat transaksi, memantau SPY serta harga Tabungan Emas Pegadaian, dan mengelola target keuangan fleksibel.
+> Dashboard keuangan dan investasi pribadi berbasis FastAPI untuk memisahkan modal bersih dari nilai pasar dan P/L, mencatat transaksi, memantau SPY serta harga spot emas XAU dengan bid/ask, dan mengelola target keuangan fleksibel.
 
 ## Topik GitHub
 
@@ -18,11 +18,11 @@ Dokumen ini berisi teks ringkas untuk profil GitHub, LinkedIn, dan CV. Sesuaikan
 
 **WealthPilot — Dasbor Keuangan dan Investasi Pribadi**
 
-WealthPilot saya kembangkan untuk mengatasi masalah pencatatan investasi: modal yang disetor harus tetap terpisah dari nilai pasar dan keuntungan atau kerugian. Aplikasi menyediakan ledger transaksi, perhitungan portofolio dengan dasar modal rata-rata tertimbang, pemantauan quote SPY dan USD/IDR, pencatatan manual harga Tabungan Emas Pegadaian dari Tring!, serta pengelolaan target keuangan yang dapat disesuaikan sendiri.
+WealthPilot saya kembangkan untuk mengatasi masalah pencatatan investasi: modal yang disetor harus tetap terpisah dari nilai pasar dan keuntungan atau kerugian. Aplikasi menyediakan ledger transaksi, perhitungan portofolio dengan dasar modal rata-rata tertimbang, pemantauan quote SPY dan USD/IDR, quote spot emas XAU bid/ask dari Standard Bullion, serta pengelolaan target keuangan yang dapat disesuaikan sendiri.
 
 Fokus teknisnya adalah integritas data dan transparansi sumber harga. Sistem memvalidasi urutan transaksi, tidak mengubah harga yang tidak tersedia menjadi nol, menampilkan timestamp sumber, menandai quote basi, serta menyediakan ekspor ledger CSV. Proyek ini menggunakan Python, FastAPI, SQLite, HTML, CSS, JavaScript, `unittest`, dan GitHub Actions.
 
-**Batasan yang dinyatakan dengan jelas:** harga Pegadaian saat ini dimasukkan manual dari aplikasi Tring! karena belum ada integrasi otomatis akun pribadi. Quote SPY/USD/IDR membutuhkan API key, akses instrumen, dan izin data dari provider. Aplikasi ini berjalan lokal, bukan platform trading atau layanan keuangan multi-pengguna.
+**Batasan yang dinyatakan dengan jelas:** harga emas merupakan benchmark dealer spot internasional, bukan harga resmi Tabungan Emas Pegadaian atau harga eksekusi di Indonesia. Quote SPY dan USD/IDR membutuhkan API key, akses instrumen, serta izin tampilan dari Twelve Data. Aplikasi ini berjalan lokal dan tidak menjalankan transaksi.
 
 ## Draft post LinkedIn
 
@@ -33,7 +33,7 @@ Masalah yang ingin saya selesaikan sederhana: modal yang disetor tidak boleh ter
 Fitur yang tersedia saat ini:
 - Pencatatan setoran, penarikan, saldo awal aset, pembelian, penjualan, dan dividen.
 - Pemantauan quote SPY dan kurs USD/IDR melalui API market-data.
-- Histori harga Tabungan Emas Pegadaian berdasarkan snapshot yang dicatat dari aplikasi Tring!.
+- Histori harga spot emas XAU dari Standard Bullion, dikonversi ke IDR/gram menggunakan kurs USD/IDR terkini; histori IDR adalah estimasi.
 - Target keuangan yang dapat dibuat dan diubah sesuai kebutuhan pengguna.
 - Ekspor transaksi CSV serta pengujian otomatis.
 

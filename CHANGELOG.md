@@ -1,5 +1,27 @@
 # Catatan Perubahan
 
+## [0.5.1] - 2026-10-28
+
+### Diperbaiki
+- Label harga beli (ask) dan harga jual (bid) diperjelas agar tidak tertukar di Market Monitor.
+- Persentase perubahan emas diberi label sebagai perubahan XAU/USD karena konversi IDR juga dipengaruhi kurs USD/IDR.
+- Harga benchmark spot tidak lagi otomatis diisikan ke formulir transaksi; harga transaksi harus berasal dari bukti eksekusi aktual.
+- Histori emas lokal fallback dibatasi sesuai rentang grafik yang dipilih.
+- Pergantian rentang grafik emas tidak memaksa permintaan quote USD/IDR baru ke Twelve Data, untuk mengurangi pemakaian kredit API.
+- UI input snapshot manual Pegadaian lama dihapus dari antarmuka utama; endpoint dan tabel lama dipertahankan hanya untuk kompatibilitas data.
+- Dokumentasi portofolio diperbarui agar sesuai dengan sumber quote spot emas yang aktif.
+
+### Diuji
+- Pengujian sumber quote XAU ask/bid, konversi IDR/gram, histori, fallback, dan label UI.
+
+## 0.5.0 — Harga emas spot live bid/ask
+
+- Mengganti monitor harga emas yang sebelumnya bergantung pada input manual Pegadaian menjadi quote spot XAU bid/ask dari Standard Bullion.
+- Mengonversi harga ask/bid USD per troy ounce ke IDR/gram menggunakan kurs USD/IDR dari Twelve Data.
+- Menambahkan histori emas dari endpoint market history Standard Bullion dan rentang 24 jam, 7 hari, 1 bulan, dan 1 tahun.
+- Menambahkan cache, timestamp, penandaan quote lama, dan snapshot lokal untuk fallback histori.
+- Menambahkan atribusi sumber dan keterangan bahwa quote spot bukan harga resmi Pegadaian.
+
 ## [0.4.1] - 2026-10-28
 
 ### Diperbaiki
