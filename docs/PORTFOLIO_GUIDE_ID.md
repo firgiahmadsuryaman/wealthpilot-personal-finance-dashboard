@@ -1,51 +1,54 @@
-# Menampilkan WealthPilot di GitHub dan LinkedIn
+# Ringkasan Portofolio — WealthPilot
 
-Dokumen ini berisi teks yang bisa disesuaikan sebelum repository dipublikasikan. Jangan mengklaim integrasi otomatis Pegadaian/Pluang atau streaming tick-by-tick; versi saat ini belum menyediakan hal tersebut.
+Dokumen ini berisi teks ringkas untuk profil GitHub, LinkedIn, dan CV. Sesuaikan dengan pekerjaan yang benar-benar telah kamu lakukan dan jangan mengklaim fitur yang belum tersedia.
 
 ## Nama repository
 
 `wealthpilot-personal-finance-dashboard`
 
-## Deskripsi singkat GitHub
+## Deskripsi singkat repository
 
-> Local-first personal wealth dashboard for tracking investment capital separately from market value, monitoring SPY and Pegadaian gold prices, recording transactions, and managing flexible financial goals.
+> Dashboard keuangan dan investasi pribadi berbasis FastAPI untuk memisahkan modal bersih dari nilai pasar dan P/L, mencatat transaksi, memantau SPY serta harga Tabungan Emas Pegadaian, dan mengelola target keuangan fleksibel.
 
-## Topics GitHub
+## Topik GitHub
 
-`python`, `fastapi`, `sqlite`, `personal-finance`, `investment-dashboard`, `portfolio-tracker`, `market-data`, `financial-literacy`, `vanilla-javascript`
+`python`, `fastapi`, `sqlite`, `personal-finance`, `investment-dashboard`, `portfolio-tracker`, `market-data`, `financial-literacy`, `vanilla-javascript`, `indonesian`
 
-## Ringkasan proyek untuk bagian Projects/Featured
+## Ringkasan proyek
 
-**WealthPilot — Personal Investment & Wealth Dashboard**
+**WealthPilot — Dasbor Keuangan dan Investasi Pribadi**
 
-Saya membangun dashboard keuangan pribadi yang membantu pengguna memisahkan modal bersih, nilai pasar, dan keuntungan/kerugian investasi. Aplikasi mencatat transaksi emas Tabungan Emas Pegadaian dan ETF SPY, menyediakan pemantauan quote beserta timestamp sumber, menampilkan arus kas portofolio, dan memungkinkan pengguna membuat target finansial sendiri.
+WealthPilot saya kembangkan untuk mengatasi masalah pencatatan investasi: modal yang disetor harus tetap terpisah dari nilai pasar dan keuntungan atau kerugian. Aplikasi menyediakan ledger transaksi, perhitungan portofolio dengan dasar modal rata-rata tertimbang, pemantauan quote SPY dan USD/IDR, pencatatan manual harga Tabungan Emas Pegadaian dari Tring!, serta pengelolaan target keuangan yang dapat disesuaikan sendiri.
 
-Fokus teknis proyek ini adalah integritas pencatatan: transaksi eksternal dibedakan dari pembelian/penjualan aset, valuasi tidak diisi dengan nol ketika harga tidak tersedia, dan data yang diinput manual diberi label sumbernya. Teknologi yang digunakan meliputi Python, FastAPI, SQLite, HTML, CSS, JavaScript, serta integrasi market-data melalui API.
+Fokus teknisnya adalah integritas data dan transparansi sumber harga. Sistem memvalidasi urutan transaksi, tidak mengubah harga yang tidak tersedia menjadi nol, menampilkan timestamp sumber, menandai quote basi, serta menyediakan ekspor ledger CSV. Proyek ini menggunakan Python, FastAPI, SQLite, HTML, CSS, JavaScript, `unittest`, dan GitHub Actions.
 
-**Batasan yang transparan:** harga Tabungan Emas Pegadaian pada versi ini dimasukkan manual dari Tring! by Pegadaian; quote SPY dan USD/IDR bergantung pada API key serta hak akses data provider. Aplikasi belum terhubung langsung ke akun Pegadaian atau Pluang.
+**Batasan yang dinyatakan dengan jelas:** harga Pegadaian saat ini dimasukkan manual dari aplikasi Tring! karena belum ada integrasi otomatis akun pribadi. Quote SPY/USD/IDR membutuhkan API key, akses instrumen, dan izin data dari provider. Aplikasi ini berjalan lokal, bukan platform trading atau layanan keuangan multi-pengguna.
 
 ## Draft post LinkedIn
 
-Saya sedang mengembangkan **WealthPilot**, personal finance dashboard yang berangkat dari masalah sederhana: modal yang disetor tidak boleh tercampur dengan nilai pasar dan keuntungan/kerugian investasi.
+Saya sedang mengembangkan **WealthPilot**, dashboard keuangan pribadi untuk membantu mencatat investasi secara lebih transparan.
 
-Fitur yang sedang saya bangun mencakup:
-- Ledger transaksi untuk setoran, penarikan, pembelian, dan penjualan aset.
-- Pemisahan modal bersih, nilai portofolio, P/L terealisasi, dan P/L belum terealisasi.
-- Market monitor untuk SPY dan Tabungan Emas Pegadaian dengan sumber data dan timestamp yang jelas.
-- Target keuangan yang bisa dibuat dan diubah pengguna sendiri.
+Masalah yang ingin saya selesaikan sederhana: modal yang disetor tidak boleh tercampur dengan nilai pasar dan keuntungan/kerugian. Karena itu, saya membangun ledger transaksi serta perhitungan yang memisahkan modal bersih, saldo kas, nilai aset, P/L terealisasi, dan P/L belum terealisasi.
 
-Stack: Python, FastAPI, SQLite, HTML, CSS, JavaScript, dan API market-data.
+Fitur yang tersedia saat ini:
+- Pencatatan setoran, penarikan, saldo awal aset, pembelian, penjualan, dan dividen.
+- Pemantauan quote SPY dan kurs USD/IDR melalui API market-data.
+- Histori harga Tabungan Emas Pegadaian berdasarkan snapshot yang dicatat dari aplikasi Tring!.
+- Target keuangan yang dapat dibuat dan diubah sesuai kebutuhan pengguna.
+- Ekspor transaksi CSV serta pengujian otomatis.
 
-Salah satu prinsip desainnya adalah tidak menampilkan angka yang tidak dapat diverifikasi sebagai harga live. Integrasi Pegadaian saat ini memakai input manual dari aplikasi Tring!, sementara data SPY mengikuti ketersediaan serta lisensi provider.
+**Stack:** Python, FastAPI, SQLite, HTML, CSS, JavaScript, unittest, GitHub Actions.
 
-Proyek ini membantu saya mempraktikkan API design, data modeling, financial calculations, testing, dan dokumentasi produk. Saya akan terus menyempurnakan alur pengguna dan pengujian sebelum menambah fitur yang lebih kompleks.
+Salah satu prinsip desainnya adalah tidak menyebut data basi sebagai real-time dan tidak mengisi harga yang hilang dengan angka palsu. Proyek ini juga menjadi latihan saya dalam API design, pemodelan data, pengujian logika keuangan, dokumentasi, serta pengelolaan versi dengan Git.
 
-#Python #FastAPI #PersonalFinance #FinTech #SoftwareDevelopment
+Repository: [tambahkan tautan repository GitHub setelah dipublikasikan]
 
-## Saran sebelum dipublikasikan
+#Python #FastAPI #FinTech #PersonalFinance #SoftwareDevelopment #GitHub
 
-1. Ganti deskripsi repository bila kamu ingin versi bahasa Indonesia.
-2. Tambahkan link repository publik setelah kamu membuatnya di akun GitHub sendiri.
-3. Unggah screenshot aplikasi yang tidak menampilkan data atau transaksi pribadi.
-4. Jalankan seluruh test dan periksa file `.env`, database lokal, log, dan screenshot sebelum push.
-5. Cantumkan keterbatasan sumber data agar proyek ini terlihat kredibel, bukan berlebihan dalam klaim.
+## Sebelum dipublikasikan
+
+1. Jalankan tes dan pastikan semuanya lulus.
+2. Gunakan screenshot demo tanpa saldo atau transaksi pribadi.
+3. Periksa `.env`, database lokal, log, serta file ekspor sebelum `git push`.
+4. Pastikan README menyebut batasan integrasi harga dan status data dengan jujur.
+5. Setelah repository publik tersedia, tambahkan tautan langsung ke bagian Featured atau Projects di LinkedIn.
