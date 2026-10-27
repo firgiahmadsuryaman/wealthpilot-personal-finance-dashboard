@@ -45,7 +45,16 @@ Jenis yang dianjurkan:
 - `chore`: pekerjaan pemeliharaan
 - `ci`: otomasi pengujian
 
-Riwayat proyek disiapkan secara bertahap dengan pesan berbahasa Indonesia. Commit awal pada paket ini menggunakan identitas teknis `WealthPilot Developer` agar tidak mengaku sebagai akun pribadimu; sebelum membuat commit baru, konfigurasikan nama dan e-mail Git yang benar milikmu. Jangan mengganti identitas commit lama agar terlihat seolah-olah kamu mengerjakan perubahan historis itu sendiri. Untuk pengembangan selanjutnya, gunakan contoh commit berikut hanya bila perubahan tersebut benar-benar dilakukan:
+Riwayat proyek disiapkan secara bertahap dengan pesan berbahasa Indonesia. Commit awal pada paket ini menggunakan identitas teknis `WealthPilot Developer` agar tidak mengaku sebagai akun pribadimu; sebelum membuat commit baru, konfigurasikan nama dan e-mail Git yang benar milikmu untuk repository ini:
+
+```powershell
+git config --local user.name "NAMA GITHUB MILIKMU"
+git config --local user.email "EMAIL GITHUB TERVERIFIKASI"
+git config --local user.name
+git config --local user.email
+```
+
+Perintah tersebut mengatur identitas untuk commit berikutnya. Jangan mengganti identitas commit lama agar terlihat seolah-olah kamu mengerjakan perubahan historis itu sendiri. Untuk pengembangan selanjutnya, gunakan contoh commit berikut hanya bila perubahan tersebut benar-benar dilakukan:
 
 ```text
 feat: tambahkan ekspor transaksi ke CSV
