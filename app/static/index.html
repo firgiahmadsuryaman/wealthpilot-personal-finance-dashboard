@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08111f" />
+  <meta name="description" content="WealthPilot is a local-first personal wealth dashboard for tracking portfolio capital, market value, realized and unrealized P/L, market quotes, cash flow, and flexible financial goals." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="WealthPilot — Personal Wealth Dashboard" />
+  <meta property="og:description" content="Track what you invested separately from what the market says it is worth." />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <title>WealthPilot — Personal Wealth Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><span></span><span></span><span></span></div>
+        <div><div class="brand-name">WealthPilot</div><div class="brand-tag">Your wealth, your plan</div></div>
+      </div>
+      <nav class="nav">
+        <button class="nav-link active" data-page="overview"><span class="nav-icon">⌂</span>Beranda</button>
+        <div class="nav-label">KEUANGAN</div>
+        <button class="nav-link" data-page="transactions"><span class="nav-icon">↔</span>Transaksi</button>
+        <button class="nav-link" data-page="cashflow"><span class="nav-icon">▥</span>Arus kas</button>
+        <div class="nav-label">INVESTASI</div>
+        <button class="nav-link" data-page="market"><span class="nav-icon">⌁</span>Market monitor</button>
+        <button class="nav-link" data-page="portfolio"><span class="nav-icon">◉</span>Portofolio</button>
+        <div class="nav-label">TUJUAN</div>
+        <button class="nav-link" data-page="goals"><span class="nav-icon">◎</span>Target keuangan</button>
+        <button class="nav-link" data-page="settings"><span class="nav-icon">⚙</span>Pengaturan data</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="safety-icon">✳</div>
+        <p>Data jelas.<br/>Keputusan terencana.</p>
+        <span>WealthPilot · Local MVP</span>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="search-wrap"><span>⌕</span><input id="globalSearch" placeholder="Cari transaksi, aset, atau tujuan..." autocomplete="off" /></div>
+        <div class="topbar-right">
+          <div class="data-status"><span class="status-dot" id="globalStatusDot"></span><div><strong id="globalStatus">Memeriksa sumber data</strong><small id="lastChecked">Menyiapkan dashboard...</small></div></div>
+          <div class="avatar">WP</div><div class="user-label"><b>Personal dashboard</b><small>Mode lokal</small></div>
+        </div>
+      </header>
+
+      <div class="page-wrap">
+        <section class="page-view active" id="page-overview">
+          <div class="page-heading"><div><div class="eyebrow">RINGKASAN KEUANGAN</div><h1>Dashboard utama</h1><p>Pantau modal asli, nilai pasar, dan target finansial dalam satu tempat.</p></div><div class="heading-actions"><button class="btn btn-secondary" id="refreshBtn">↻ Perbarui data</button><button class="btn btn-primary" id="addTxTop">＋ Catat transaksi</button></div></div>
+          <div class="notice notice-info" id="valuationNotice" hidden><span class="notice-icon">ⓘ</span><div><b>Valuasi belum lengkap</b><p id="valuationNoticeText"></p></div></div>
+          <div class="metric-grid">
+            <article class="metric-card"><div class="metric-top"><span>Modal bersih</span><span class="metric-icon blue">↗</span></div><div class="metric-value" id="metricCapital">Rp0</div><div class="metric-help">Setoran + modal aset awal − penarikan</div><div class="metric-foot muted">Tidak berubah hanya karena harga pasar bergerak</div></article>
+            <article class="metric-card"><div class="metric-top"><span>Nilai portofolio</span><span class="metric-icon purple">◈</span></div><div class="metric-value" id="metricValue">Rp0</div><div class="metric-help">Kas + estimasi nilai pasar aset</div><div class="metric-foot" id="metricValueFoot">Menunggu pencatatan aset</div></article>
+            <article class="metric-card"><div class="metric-top"><span>Total untung / rugi</span><span class="metric-icon green">↗</span></div><div class="metric-value" id="metricPnl">—</div><div class="metric-help" id="metricPnlPct">Belum ada data untuk dihitung</div><div class="metric-foot muted">Termasuk hasil terealisasi dan belum terealisasi</div></article>
+            <article class="metric-card"><div class="metric-top"><span>Saldo kas portofolio</span><span class="metric-icon amber">▤</span></div><div class="metric-value" id="metricCash">Rp0</div><div class="metric-help">Dana yang belum dipakai membeli aset</div><div class="metric-foot muted">Dana darurat di luar portofolio dicatat terpisah</div></article>
+          </div>
+
+          <div class="section-title-row"><div><h2>Market watch</h2><p>Harga sesuai sumber data, bukan angka simulasi.</p></div><span class="tiny-status"><span class="status-dot"></span>Data berlabel sumber & waktu</span></div>
+          <div class="market-grid">
+            <article class="market-card gold-card"><div class="market-card-head"><div class="asset-brand gold-brand">Au</div><div class="asset-title"><b>Tabungan Emas Pegadaian</b><small id="goldSource">Sumber: Tring! by Pegadaian</small></div><span class="pill pill-neutral" id="goldStatus">Belum disinkronkan</span></div><div class="asset-main-price" id="goldSellPrice">— <small>/ gram (harga jual kembali)</small></div><div class="asset-delta" id="goldChange">Masukkan harga resmi dari aplikasi Tring!</div><div class="market-dual"><div><small>Harga beli di Tring!</small><b id="goldBuyPrice">—</b></div><div><small>Harga jual kembali di Tring!</small><b id="goldSellPriceSmall">—</b></div></div><div class="card-footer"><span id="goldUpdated">Belum ada timestamp</span><button class="text-button" data-open="goldRateModal">Perbarui harga ↗</button></div></article>
+            <article class="market-card spy-card"><div class="market-card-head"><div class="asset-brand spy-brand">SPY</div><div class="asset-title"><b>SPY · S&amp;P 500 ETF</b><small id="spySource">Sumber: Twelve Data</small></div><span class="pill pill-neutral" id="spyStatus">Belum tersambung</span></div><div class="asset-main-price" id="spyPrice">— <small>USD / unit</small></div><div class="asset-delta" id="spyChange">API key diperlukan untuk harga asli.</div><div class="market-dual"><div><small>Estimasi dalam rupiah</small><b id="spyPriceIdr">—</b></div><div><small>Kurs USD/IDR</small><b id="usdIdr">—</b></div></div><div class="card-footer"><span id="spyUpdated">Belum ada timestamp</span><a class="text-button" href="https://twelvedata.com/" target="_blank" rel="noreferrer">Sumber API ↗</a></div></article>
+          </div>
+
+          <div class="content-grid two-col">
+            <article class="panel">
+              <div class="panel-heading"><div><h2>Komposisi portofolio</h2><p>Nilai saat ini dibandingkan modal aset.</p></div><button class="text-button" data-page-link="portfolio">Lihat detail ↗</button></div>
+              <div id="allocationArea" class="allocation-area"><div class="empty-state"><div class="empty-symbol">◉</div><b>Belum ada aset tercatat</b><p>Tambahkan saldo awal atau transaksi pembelian untuk melihat komposisi portofolio.</p><button class="btn btn-secondary btn-small" id="addTxEmpty">Catat aset pertama</button></div></div>
+            </article>
+            <article class="panel">
+              <div class="panel-heading"><div><h2>Target keuangan</h2><p>Atur nama, nominal, dan tenggat target sesuai prioritasmu.</p></div><button class="text-button" data-page-link="goals">Kelola target ↗</button></div>
+              <div id="goalsPreview" class="goals-preview"><div class="empty-state compact"><div class="empty-symbol">⌂</div><b>Target belum dibuat</b><p>Tentukan nominal dan tanggal tujuan agar progres bisa dihitung.</p><button class="btn btn-secondary btn-small" data-page-link="goals">Buat target</button></div></div>
+            </article>
+          </div>
+
+          <article class="panel recent-panel"><div class="panel-heading"><div><h2>Transaksi terbaru</h2><p>Setiap modal dan perubahan aset harus dapat ditelusuri.</p></div><button class="text-button" data-page-link="transactions">Lihat semua ↗</button></div><div class="table-wrap"><table><thead><tr><th>TANGGAL</th><th>JENIS</th><th>ASET</th><th>KUANTITAS / NILAI</th><th>HARGA</th></tr></thead><tbody id="recentTxRows"><tr><td colspan="5"><div class="table-empty">Belum ada transaksi. Data awal tidak dibuat-buat.</div></td></tr></tbody></table></div></article>
+        </section>
+
+        <section class="page-view" id="page-market">
+          <div class="page-heading"><div><div class="eyebrow">DATA PASAR</div><h1>Market monitor</h1><p>Perubahan harga berdasarkan sumber yang dipilih, lengkap dengan timestamp.</p></div><div class="heading-actions"><button class="btn btn-secondary" id="refreshMarketBtn">↻ Refresh quote</button><button class="btn btn-primary" data-open="goldRateModal">＋ Sync harga Pegadaian</button></div></div>
+          <div class="notice notice-warning"><span class="notice-icon">!</span><div><b>Perbedaan frekuensi pembaruan</b><p>Harga Tabungan Emas Pegadaian mengikuti pembaruan Pegadaian dan tidak dijamin berubah tiap detik; SPY diperbarui berdasarkan kuota serta timestamp dari penyedia market-data.</p></div></div>
+          <div class="content-grid two-col"><article class="panel"><div class="panel-heading"><div><h2>Riwayat harga jual kembali Pegadaian</h2><p>Grafik memakai snapshot harga yang benar-benar dicatat.</p></div></div><canvas id="goldHistoryChart" height="220"></canvas><div id="goldHistoryEmpty" class="empty-hint">Belum ada riwayat. Simpan pembaruan harga dari Tring! pada beberapa waktu untuk membentuk grafik.</div></article><article class="panel"><div class="panel-heading"><div><h2>Riwayat quote SPY</h2><p>Snapshot terbentuk setelah API terhubung.</p></div></div><canvas id="spyHistoryChart" height="220"></canvas><div id="spyHistoryEmpty" class="empty-hint">Belum ada quote tersimpan. Isi API key market-data yang valid terlebih dahulu.</div></article></div>
+          <article class="panel"><div class="panel-heading"><div><h2>Detail sumber data</h2><p>Transparansi adalah bagian dari perhitungan yang benar.</p></div></div><div class="source-list"><div class="source-row"><div class="source-badge gold-brand">Au</div><div class="source-info"><b>Tabungan Emas Pegadaian</b><p>Harga beli nasabah dan harga jual kembali harus sama dengan yang tampil di Tring! by Pegadaian.</p><small>Sumber resmi Pegadaian: <a href="https://pegadaian.co.id/harga-emas" target="_blank" rel="noreferrer">pegadaian.co.id/harga-emas</a></small></div><span class="pill pill-neutral" id="goldSourceStatus">Manual sync</span></div><div class="source-row"><div class="source-badge spy-brand">SPY</div><div class="source-info"><b>Twelve Data</b><p>Harga quote pasar SPY dan USD/IDR. Pastikan plan dan lisensi mengizinkan data ditampilkan di dashboard.</p><small><a href="https://twelvedata.com/docs" target="_blank" rel="noreferrer">Dokumentasi quote API</a></small></div><span class="pill pill-neutral" id="spySourceStatus">Belum tersambung</span></div></div></article>
+        </section>
+
+        <section class="page-view" id="page-transactions">
+          <div class="page-heading"><div><div class="eyebrow">LEDGER TRANSAKSI</div><h1>Transaksi</h1><p>Catat setoran, penarikan, pembelian, penjualan, dan saldo aset awal.</p></div><div class="heading-actions"><button class="btn btn-primary" data-open="transactionModal">＋ Tambah transaksi</button></div></div>
+          <div class="notice notice-info"><span class="notice-icon">ⓘ</span><div><b>Jangan mencampur modal dengan keuntungan</b><p>Setoran eksternal mengubah modal bersih. Pembelian dan penjualan adalah perpindahan uang menjadi aset. Harga eksekusi dicatat sesuai riwayat transaksi, bukan otomatis dianggap sama dengan quote pasar sekarang.</p></div></div>
+          <article class="panel"><div class="panel-heading"><div><h2>Riwayat transaksi</h2><p>Ledger lokal yang bisa ditelusuri.</p></div><div class="inline-field"><label for="txFilter">Filter</label><select id="txFilter"><option value="ALL">Semua</option><option value="CASH">Setoran / penarikan / dividen</option><option value="ASSET">Transaksi aset</option></select></div></div><div class="table-wrap"><table><thead><tr><th>TANGGAL</th><th>JENIS</th><th>ASET</th><th>KUANTITAS</th><th>HARGA UNIT</th><th>NILAI IDR</th><th>CATATAN</th><th></th></tr></thead><tbody id="allTxRows"><tr><td colspan="8"><div class="table-empty">Memuat transaksi...</div></td></tr></tbody></table></div></article>
+        </section>
+
+        <section class="page-view" id="page-portfolio">
+          <div class="page-heading"><div><div class="eyebrow">KEPEMILIKAN ASET</div><h1>Portofolio</h1><p>Modal aset, nilai pasar, dan P/L ditampilkan secara terpisah.</p></div><div class="heading-actions"><button class="btn btn-primary" data-open="transactionModal">＋ Catat aset</button></div></div>
+          <div class="holdings-grid" id="holdingsCards"></div>
+          <article class="panel"><div class="panel-heading"><div><h2>Definisi perhitungan</h2><p>Agar angka bisa diaudit dan tidak menyesatkan.</p></div></div><div class="formula-grid"><div><span>01</span><b>Modal bersih</b><p>Setoran eksternal + modal saldo aset awal − penarikan eksternal.</p></div><div><span>02</span><b>Nilai portofolio</b><p>Saldo kas + nilai pasar aset; emas memakai harga jual kembali Pegadaian.</p></div><div><span>03</span><b>Untung/rugi total</b><p>Nilai portofolio − modal bersih, termasuk realized dan unrealized P/L.</p></div><div><span>04</span><b>Dasar modal aset</b><p>Metode rata-rata tertimbang; biaya transaksi dimasukkan sesuai transaksi.</p></div></div></article>
+        </section>
+
+        <section class="page-view" id="page-cashflow">
+          <div class="page-heading"><div><div class="eyebrow">PENDAPATAN FREELANCE</div><h1>Arus kas portofolio</h1><p>Pantau uang yang masuk dan keluar dari sistem investasi.</p></div><div class="heading-actions"><button class="btn btn-primary" data-open="transactionModal">＋ Catat arus kas</button></div></div>
+          <div class="metric-grid three"><article class="metric-card"><div class="metric-top"><span>Saldo kas</span><span class="metric-icon blue">▤</span></div><div class="metric-value" id="cashPageBalance">Rp0</div><div class="metric-help">Saldo setelah transaksi portofolio</div></article><article class="metric-card"><div class="metric-top"><span>Setoran eksternal bersih</span><span class="metric-icon green">＋</span></div><div class="metric-value" id="cashPageContrib">Rp0</div><div class="metric-help">Setoran dikurangi penarikan</div></article><article class="metric-card"><div class="metric-top"><span>Dividen / pendapatan</span><span class="metric-icon amber">↗</span></div><div class="metric-value" id="cashPageIncome">Rp0</div><div class="metric-help">Jumlah dividen yang dicatat</div></article></div>
+          <article class="panel"><div class="panel-heading"><div><h2>Arus kas terkini</h2><p>Termasuk hanya transaksi yang tercatat di aplikasi ini.</p></div></div><div class="table-wrap"><table><thead><tr><th>TANGGAL</th><th>JENIS</th><th>NILAI</th><th>CATATAN</th></tr></thead><tbody id="cashRows"></tbody></table></div></article>
+        </section>
+
+        <section class="page-view" id="page-goals">
+          <div class="page-heading"><div><div class="eyebrow">RENCANA MASA DEPAN</div><h1>Target keuangan</h1><p>Buat dan kelola target sesuai kebutuhanmu. Nama, nominal, progres awal, dan tenggat bisa kamu tentukan sendiri.</p></div><div class="heading-actions"><button class="btn btn-primary" data-open="goalModal">＋ Buat target</button></div></div>
+          <div class="notice notice-info"><span class="notice-icon">◎</span><div><b>Target bukan investasi</b><p>Jumlah pada target merupakan tabungan yang kamu masukkan ke perencana. Pada MVP ini, target tidak otomatis menghitung saldo rekening bank pribadi atau aset di luar portofolio.</p></div></div>
+          <div class="goal-grid" id="goalCards"><div class="empty-state"><div class="empty-symbol">◎</div><b>Belum ada target finansial</b><p>Buat target apa pun yang penting bagimu, lalu pantau jumlah terkumpul dan progresnya.</p></div></div>
+        </section>
+
+        <section class="page-view" id="page-settings">
+          <div class="page-heading"><div><div class="eyebrow">PENGATURAN SUMBER</div><h1>Pengaturan data</h1><p>Konfigurasi harga resmi dan koneksi market-data.</p></div></div>
+          <div class="content-grid two-col"><article class="panel settings-panel"><div class="panel-heading"><div><h2>Harga Tabungan Emas Pegadaian</h2><p>Masukkan angka yang sama persis dengan Tring! by Pegadaian.</p></div><div class="asset-brand gold-brand">Au</div></div><div class="settings-detail"><div><small>Harga beli nasabah</small><b id="settingGoldBuy">Belum dicatat</b></div><div><small>Harga jual kembali / buyback</small><b id="settingGoldSell">Belum dicatat</b></div><div><small>Terakhir diperbarui</small><b id="settingGoldTime">—</b></div></div><button class="btn btn-primary btn-wide" data-open="goldRateModal">Input harga dari Tring!</button><p class="settings-note">Dashboard tidak memakai harga spot global sebagai pengganti harga Pegadaian. Update resmi Pegadaian dapat berlangsung berkala.</p></article>
+            <article class="panel settings-panel"><div class="panel-heading"><div><h2>Market-data SPY</h2><p>API key disimpan lokal di file .env, tidak di browser.</p></div><div class="asset-brand spy-brand">SPY</div></div><div class="settings-detail"><div><small>Provider</small><b>Twelve Data</b></div><div><small>Quote SPY</small><b id="settingSpyStatus">Belum tersambung</b></div><div><small>Quote USD/IDR</small><b id="settingFxStatus">Belum tersambung</b></div><div><small>Interval cache</small><b id="settingRefresh">—</b></div></div><a class="btn btn-secondary btn-wide" href="https://twelvedata.com/" target="_blank" rel="noreferrer">Buat / kelola API key ↗</a><p class="settings-note">Setelah menyimpan API key ke .env, restart server. Pastikan paket data mengizinkan display dan mendukung SPY serta USD/IDR.</p></article></div>
+          <article class="panel"><div class="panel-heading"><div><h2>Aturan integritas data</h2><p>Yang tidak akan dilakukan sistem.</p></div></div><div class="integrity-list"><div><span class="checkmark">✓</span><div><b>Tidak ada harga palsu</b><p>Jika sumber tidak tersedia, harga ditampilkan sebagai tidak tersedia.</p></div></div><div><span class="checkmark">✓</span><div><b>Tidak ada login broker</b><p>Jangan masukkan password, PIN, OTP, atau cookie Tring!/Pluang ke dashboard.</p></div></div><div><span class="checkmark">✓</span><div><b>Timestamp sumber ditampilkan</b><p>Waktu cek aplikasi dibedakan dari waktu quote yang disediakan provider.</p></div></div><div><span class="checkmark">✓</span><div><b>Modal dan P/L dipisahkan</b><p>Perubahan harga mengubah nilai pasar, bukan mengubah jumlah setoran modal.</p></div></div></div></article>
+        </section>
+        <footer class="app-footer"><span><i class="status-dot"></i> Aplikasi lokal aktif</span><span>WealthPilot · Data harus bisa ditelusuri</span></footer>
+      </div>
+    </main>
+  </div>
+
+  <!-- Transaction modal -->
+  <div class="modal-backdrop" id="transactionModal" aria-hidden="true"><div class="modal-card"><div class="modal-head"><div><div class="eyebrow">LEDGER</div><h2>Catat transaksi</h2><p>Masukkan data dari transaksi atau riwayat sebenarnya.</p></div><button class="icon-close" data-close="transactionModal" aria-label="Tutup">×</button></div><form id="transactionForm"><div class="form-grid"><div class="form-field"><label for="txType">Jenis transaksi</label><select id="txType" name="tx_type" required><option value="DEPOSIT">Setoran modal</option><option value="WITHDRAW">Penarikan eksternal</option><option value="OPENING">Saldo awal aset yang sudah dimiliki</option><option value="BUY">Pembelian aset</option><option value="SELL">Penjualan aset</option><option value="DIVIDEND">Dividen / pendapatan kas</option></select></div><div class="form-field"><label for="txAsset">Aset</label><select id="txAsset" name="asset" required><option value="CASH">Kas portofolio</option><option value="GOLD">Tabungan Emas Pegadaian</option><option value="SPY">SPY</option></select></div><div class="form-field" id="qtyField"><label for="txQuantity" id="qtyLabel">Kuantitas</label><input type="number" id="txQuantity" name="quantity" min="0.00000001" step="any" placeholder="Contoh: 1.25" /></div><div class="form-field" id="priceField"><label for="txPrice" id="priceLabel">Harga per unit</label><input type="number" id="txPrice" name="unit_price" min="0.00000001" step="any" placeholder="Harga sesuai transaksi" /></div><div class="form-field" id="priceUnitField"><label for="txPriceUnit">Satuan harga</label><select id="txPriceUnit" name="price_unit"><option value="0.01G" selected>Harga per 0,01 gram</option><option value="GRAM">Harga per gram</option><option value="UNIT">Harga per unit SPY</option></select></div><div class="form-field" id="currencyField"><label for="txCurrency">Mata uang harga</label><select id="txCurrency" name="currency"><option value="IDR">IDR · Rupiah</option><option value="USD">USD · Dolar AS</option></select></div><div class="form-field" id="fxField"><label for="txFx">Kurs IDR per USD</label><input type="number" id="txFx" name="fx_rate" min="1" step="any" placeholder="Contoh: kurs aktual" /></div><div class="form-field" id="amountField"><label for="txAmount">Jumlah (IDR)</label><input type="number" id="txAmount" name="amount_idr" min="1" step="any" placeholder="Nominal setoran / penarikan" /></div><div class="form-field" id="feeField"><label for="txFee">Biaya transaksi (IDR)</label><input type="number" id="txFee" name="fee_idr" min="0" step="any" value="0" /></div><div class="form-field"><label for="txDate">Tanggal transaksi</label><input type="datetime-local" id="txDate" name="occurred_at" /></div><div class="form-field full"><label for="txMemo">Catatan</label><input type="text" id="txMemo" name="memo" maxlength="500" placeholder="Contoh: pembelian dari aplikasi Pluang / saldo awal dari Tring!" /></div></div><div class="form-hint" id="txHint">Setoran modal menambah modal bersih; harga pasar tidak mengubah modal.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close="transactionModal">Batal</button><button type="submit" class="btn btn-primary" id="saveTxBtn">Simpan transaksi</button></div></form></div></div>
+
+  <!-- Pegadaian rate modal -->
+  <div class="modal-backdrop" id="goldRateModal" aria-hidden="true"><div class="modal-card modal-narrow"><div class="modal-head"><div><div class="eyebrow">SUMBER RESMI</div><h2>Sync harga Pegadaian</h2><p>Salin angka yang tampil pada menu Tabungan Emas di Tring!.</p></div><button class="icon-close" data-close="goldRateModal" aria-label="Tutup">×</button></div><form id="goldRateForm"><div class="source-callout"><b>Pastikan istilah harga benar</b><p><strong>Harga beli nasabah</strong> = uang yang dibayar untuk membeli saldo emas.</p><p><strong>Harga jual kembali</strong> = uang per gram yang diterima jika menjual saldo emas ke Pegadaian; angka inilah yang dipakai untuk valuasi.</p></div><div class="form-field"><label for="goldQuoteUnit">Unit harga yang tampil di Tring!</label><select id="goldQuoteUnit" name="quote_unit"><option value="0.01G" selected>Harga per 0,01 gram</option><option value="GRAM">Harga per gram</option></select></div><div class="form-field"><label for="goldBuyInput">Harga beli nasabah sesuai Tring!</label><input type="number" id="goldBuyInput" name="customer_buy_idr_g" min="1" step="any" required placeholder="Salin angka yang tampil di Tring!" /></div><div class="form-field"><label for="goldSellInput">Harga jual kembali sesuai Tring!</label><input type="number" id="goldSellInput" name="customer_sell_idr_g" min="1" step="any" required placeholder="Salin angka yang tampil di Tring!" /></div><div class="form-field"><label for="goldCapturedAt">Waktu yang tercantum / waktu pengecekan</label><input type="datetime-local" id="goldCapturedAt" name="captured_at" /></div><div class="form-field"><label for="goldNotes">Catatan (opsional)</label><input type="text" id="goldNotes" name="notes" maxlength="500" placeholder="Misalnya harga ditampilkan Tring! hari ini" /></div><div class="form-hint">Setiap update disimpan sebagai histori harga. Tidak ada harga spot emas global yang digunakan sebagai pengganti.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close="goldRateModal">Batal</button><button type="submit" class="btn btn-primary">Simpan harga resmi</button></div></form></div></div>
+
+  <!-- Goal modal -->
+  <div class="modal-backdrop" id="goalModal" aria-hidden="true"><div class="modal-card modal-narrow"><div class="modal-head"><div><div class="eyebrow">RENCANA KEUANGAN</div><h2 id="goalModalTitle">Buat target</h2><p id="goalModalSubtitle">Tambahkan tujuan dan progres awal.</p></div><button class="icon-close" data-close="goalModal" aria-label="Tutup">×</button></div><form id="goalForm"><input id="goalId" name="goal_id" type="hidden" value="" /><div class="form-field"><label for="goalName">Nama target</label><input id="goalName" name="name" required maxlength="100" placeholder="Contoh: Dana pendidikan, kendaraan, atau target pribadi" /></div><div class="form-field"><label for="goalTarget">Target nominal (IDR)</label><input id="goalTarget" name="target_idr" required type="number" min="1" step="any" placeholder="Contoh: 100000000" /></div><div class="form-field"><label for="goalCurrent">Sudah terkumpul (IDR)</label><input id="goalCurrent" name="current_saved_idr" type="number" min="0" step="any" value="0" /></div><div class="form-field"><label for="goalDate">Tanggal target</label><input id="goalDate" name="target_date" type="date" /></div><div class="form-field"><label for="goalNotes">Catatan</label><input id="goalNotes" name="notes" maxlength="500" placeholder="Opsional" /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close="goalModal">Batal</button><button type="submit" class="btn btn-primary" id="saveGoalBtn">Simpan target</button></div></form></div></div>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
