@@ -68,6 +68,25 @@ class GoalCrudApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 422)
 
+
+    def test_non_finite_target_is_rejected(self):
+        response = self.client.post("/api/goals", json={"name": "Dana", "target_idr": "Infinity"})
+        self.assertEqual(response.status_code, 422)
+
+    def test_invalid_target_date_is_rejected(self):
+        response = self.client.post(
+            "/api/goals",
+            json={"name": "Target tidak valid", "target_idr": 1_000_000, "target_date": "besok atau lusa"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_delete_goal(self):
+        create = self.client.post("/api/goals", json={"name": "Dana darurat", "target_idr": 5_000_000})
+        goal_id = create.json()["goal"]["id"]
+        deleted = self.client.delete(f"/api/goals/{goal_id}")
+        self.assertEqual(deleted.status_code, 200)
+        self.assertEqual(self.client.get("/api/goals").json()["items"], [])
+
     def test_update_missing_goal_returns_404(self):
         response = self.client.put(
             "/api/goals/9999",
