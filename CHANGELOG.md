@@ -1,21 +1,34 @@
-# Changelog
+# Catatan Perubahan
 
-Notable project changes are tracked here.
+Perubahan penting WealthPilot dicatat berdasarkan versi.
 
-## 0.2.0 — Portfolio-ready MVP
+## 0.3.0 — Penguatan ledger dan sumber data
 
-- Renamed the navigation item to **Target keuangan**; goals are no longer tied to preset categories such as a house or wedding.
-- Updated goal empty states and form copy to describe user-defined goals.
-- Added goal editing (in addition to create and delete) and API validation for blank names.
-- Added a branded SVG favicon and repository metadata.
-- Added architecture and Indonesian GitHub/LinkedIn portfolio documentation.
-- Added goal API tests and GitHub Actions CI workflow.
-- Expanded README, security guidance, and data-source caveats.
+- Memastikan koneksi SQLite selalu ditutup dan transaksi database di-rollback saat terjadi exception.
+- Memindahkan pemanggilan provider keluar dari transaksi tulis SQLite.
+- Memvalidasi kronologi kas dan kuantitas sebelum transaksi disimpan atau penghapusan disetujui.
+- Memvalidasi waktu transaksi, waktu harga, tanggal target, dan batas biaya.
+- Menggunakan timestamp quote terakhir dari Twelve Data bila tersedia.
+- Menambahkan fallback snapshot tersimpan yang diberi status `stale` saat provider gagal.
+- Menambahkan penyuntingan transaksi dengan validasi ulang ledger.
+- Menambahkan ekspor transaksi CSV UTF-8 yang ramah spreadsheet dan mitigasi formula injection pada catatan.
+- Menambahkan ekspor JSON untuk seluruh tabel data lokal tanpa menyertakan kunci API.
+- Menambahkan endpoint favicon dan memperbaiki label presisi waktu quote di antarmuka.
+- Menyimpan presisi timestamp harga pasar dan tidak mengarang waktu quote jika provider hanya memberi tanggal sesi.
+- Menolak angka non-finite dan snapshot harga yang dimasukkan terlalu jauh ke masa depan.
+- Menambah tes API untuk ledger, sumber harga, migrasi database lama, ekspor, dan validasi.
+- Menerjemahkan dokumentasi utama ke bahasa Indonesia.
 
-## 0.1.0 — Initial MVP
+## 0.2.0 — MVP siap dokumentasi portofolio
 
-- Local FastAPI and SQLite dashboard.
-- Transaction ledger and portfolio capital/value/P&L accounting.
-- Manual Tring! by Pegadaian price snapshots.
-- Twelve Data quote path for SPY and USD/IDR.
-- Market history, cash flow, and basic custom goals.
+- Menu target keuangan dibuat generik; tidak ada kategori target yang dikunci.
+- Tambah, ubah, dan hapus target.
+- Tambah favicon, README, arsitektur, keamanan, panduan kontribusi, serta GitHub Actions.
+
+## 0.1.0 — MVP awal
+
+- Dashboard lokal FastAPI dan SQLite.
+- Ledger transaksi dan perhitungan modal/nilai/P&L.
+- Snapshot manual harga Tabungan Emas Pegadaian.
+- Koneksi quote SPY dan USD/IDR melalui Twelve Data.
+- Grafik histori, arus kas, dan target pribadi dasar.

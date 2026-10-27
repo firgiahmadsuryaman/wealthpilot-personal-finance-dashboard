@@ -1,21 +1,22 @@
-# Contributing
+# Panduan Kontribusi
 
-WealthPilot is currently a personal portfolio project. Bug reports and improvements are welcome, especially around accounting correctness, test coverage, accessibility, and data-source transparency.
+Terima kasih telah mempertimbangkan kontribusi ke WealthPilot.
 
-## Development setup
+## Prinsip
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m unittest discover -s tests -v
-```
+- Tulis komentar, dokumentasi, pesan antarmuka, dan commit proyek ini dalam bahasa Indonesia jika sesuai.
+- Jangan memasukkan data akun, file `.env`, database lokal, API key, atau transaksi nyata ke commit.
+- Jangan mengubah data provider menjadi harga tiruan saat provider gagal.
+- Perubahan rumus keuangan wajib disertai penjelasan aturan hitung dan tes.
+- Pertahankan pemisahan antara modal, nilai pasar, hasil terealisasi, dan hasil belum terealisasi.
 
-## Guidelines
+## Alur kerja
 
-- Include a regression test for accounting, API validation, or goal-management changes.
-- Do not add made-up market prices or seed sample holdings into the default database.
-- Keep API keys, `.env`, databases, logs, and personal screenshots out of commits.
-- Preserve the distinction between external cash flows and internal asset trades.
-- Document data-source freshness, limitations, and licensing when adding a provider.
-- Avoid integrations that require users to share broker passwords, PINs, OTPs, or session tokens.
+1. Buat branch untuk satu tujuan perubahan.
+2. Lakukan perubahan sekecil mungkin agar mudah ditinjau.
+3. Jalankan `python -m unittest discover -s tests -v`.
+4. Periksa diff dengan `git diff --check` dan `git status`.
+5. Buat commit dengan format `jenis: pesan singkat dalam bahasa Indonesia`.
+6. Jelaskan perilaku yang berubah, skenario tes, serta keterbatasan data pada pull request.
+
+Jenis commit yang disarankan: `feat`, `fix`, `test`, `docs`, `refactor`, `chore`, dan `ci`.
