@@ -1,6 +1,36 @@
 # Catatan Perubahan
 
-Perubahan penting WealthPilot dicatat berdasarkan versi.
+## [0.4.1] - 2026-10-28
+
+### Diperbaiki
+- Market Monitor menampilkan perubahan persentase sepanjang rentang grafik serta close candle terakhir dan waktu candle.
+- Pesan kegagalan sumber data tetap terlihat meskipun histori lama masih dapat digambar.
+- Permintaan candle memakai parameter urutan `asc` sesuai dokumentasi Twelve Data.
+- Cache candle bawaan diubah menjadi 60 detik dan aset statis diberi versi untuk mengurangi masalah cache browser.
+- Dokumentasi menambahkan endpoint pemeriksaan Market Monitor serta langkah diagnosis status API.
+
+### Batasan yang diketahui
+- Data langsung tetap mensyaratkan API key Twelve Data dan hak akses data yang sesuai.
+- Grafik harga Pegadaian hanya mengandung snapshot yang benar-benar disimpan dari harga di Tring!; tidak ada integrasi akun otomatis.
+
+## [0.4.0] - 2026-10-28
+
+### Ditambahkan
+- Grafik SPY mengambil candle historis dari endpoint `time_series` Twelve Data, tidak lagi bergantung hanya pada snapshot lokal quote.
+- Pilihan rentang grafik 1D, 5D, 1M, dan 1Y dengan interval candle yang sesuai.
+- Penyimpanan candle historis ke SQLite melalui tabel `market_bars`, termasuk fallback dengan label data basi ketika provider gagal.
+- Interval quote 1 menit yang dapat dikonfigurasi untuk SPY dan USD/IDR.
+- Refresh manual yang melewati cache quote/grafik serta indikator status jumlah candle, interval, dan status cache.
+- Pengujian untuk candle provider, pengurutan waktu, persistensi, fallback stale, dan keadaan tanpa API key.
+
+### Diperbaiki
+- Market Monitor kini meminta histori harga provider agar grafik dapat muncul sejak pertama kali digunakan saat API memiliki izin dan data tersedia.
+- Ekspor cadangan menyesuaikan tabel candle yang menggunakan primary key gabungan.
+- Waktu dan status grafik membedakan histori provider dari snapshot yang sudah tersimpan.
+
+### Batasan yang diketahui
+- Status respons provider yang berhasil bukan jaminan bahwa paket API menyediakan data real-time; keterlambatan mengikuti paket/lisensi.
+- Harga Tabungan Emas Pegadaian tetap dimasukkan dari aplikasi Tring! untuk menjaga kesesuaian dengan harga produk pengguna.
 
 ## 0.3.0 — Penguatan ledger dan sumber data
 

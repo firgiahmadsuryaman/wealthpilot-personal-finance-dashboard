@@ -57,7 +57,7 @@ Pengguna mencatat harga beli nasabah dan harga jual kembali yang terlihat di Tri
 
 ### SPY dan USD/IDR
 
-Quote diambil dari Twelve Data saat API key dikonfigurasi. Akses, tingkat keterlambatan, interval pembaruan, dan izin display tergantung paket serta lisensi provider. Nilai SPY dalam IDR adalah estimasi berdasarkan harga quote dan quote USD/IDR, bukan harga eksekusi Pluang.
+Quote intraday diambil dari endpoint `/quote` Twelve Data saat API key dikonfigurasi. Grafik menggunakan candle asli dari endpoint `/time_series` dengan pilihan 1D (1 menit), 5D (5 menit), 1M (harian), dan 1Y (harian); grafik juga menunjukkan persentase perubahan dari candle pertama ke candle terakhir dalam rentang pilihan dan waktu candle terakhir. Candle disimpan dalam tabel `market_bars` dengan cache bawaan 60 detik agar histori dapat tersedia sebagai data stale ketika provider gagal. Endpoint `/api/market/series/SPY?range=1D&force=true` dapat dipakai untuk diagnosis. Akses, kedalaman histori, tingkat keterlambatan, interval pembaruan, dan izin display bergantung paket serta lisensi provider; aplikasi melakukan polling dan tidak menjamin streaming tick-by-tick. Nilai SPY dalam IDR adalah estimasi berdasarkan quote SPY dan quote USD/IDR, bukan harga eksekusi Pluang. Harga Tabungan Emas Pegadaian tetap berdasarkan snapshot dari Tring!, bukan harga spot emas global.
 
 ## 8. Aturan hitung
 

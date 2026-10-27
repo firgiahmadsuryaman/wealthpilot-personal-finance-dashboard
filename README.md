@@ -38,7 +38,9 @@ WealthPilot dikembangkan untuk menyelesaikan masalah pencatatan keuangan yang um
 - **Ringkasan portofolio:** modal bersih, nilai portofolio, kas, P/L total, P/L terealisasi, dan P/L belum terealisasi.
 - **Ledger transaksi:** setoran, penarikan, saldo awal aset, pembelian, penjualan, biaya, dividen/pendapatan kas, serta koreksi transaksi dengan validasi ulang urutan ledger.
 - **Tabungan Emas Pegadaian:** simpan harga beli nasabah dan harga jual kembali dari Tring!, satuan harga, sumber, catatan, timestamp, serta histori snapshot.
-- **SPY dan USD/IDR:** quote melalui Twelve Data ketika API dan paket data mengizinkan.
+- **SPY dan USD/IDR:** quote intraday melalui Twelve Data ketika API dan paket data mengizinkan.
+- **Grafik SPY:** candle historis asli dari endpoint `time_series` Twelve Data dengan rentang 1 hari (1 menit), 5 hari (5 menit), 1 bulan (harian), dan 1 tahun (harian). Candle disimpan ke SQLite agar grafik tetap dapat ditinjau saat provider tidak tersedia, dengan status stale yang jelas.
+- **Grafik Pegadaian:** hanya memakai snapshot harga jual kembali yang dimasukkan dari Tring!; ini bukan koneksi akun Pegadaian otomatis.
 - **Persentase kenaikan/penurunan:** SPY memakai perubahan yang diberikan provider; emas membandingkan snapshot Pegadaian terbaru dengan snapshot sebelumnya yang dicatat.
 - **Status data:** harga baru, tersimpan dari database, belum dikonfigurasi, atau tidak tersedia ditangani secara terpisah.
 - **Grafik histori:** dibangun dari snapshot yang benar-benar tersimpan, bukan data contoh.
@@ -77,15 +79,20 @@ Referensi publik Pegadaian: [informasi harga emas](https://pegadaian.co.id/harga
 
 ### SPY dan USD/IDR
 
-Tambahkan API key pribadi pada file `.env` (interval cache SPY bawaan 60 detik, FX 900 detik; sesuaikan dengan kuota paketmu):
+Tambahkan API key pribadi pada file `.env` (cache quote SPY bawaan 60 detik, histori grafik 60 detik, dan FX 900 detik; sesuaikan dengan kuota paketmu):
 
 ```dotenv
 TWELVE_DATA_API_KEY=masukkan_api_key_milikmu
 SPY_CACHE_SECONDS=60
 USDIDR_CACHE_SECONDS=900
+SPY_QUOTE_INTERVAL=1min
+USDIDR_QUOTE_INTERVAL=1min
+SPY_SERIES_CACHE_SECONDS=60
 ```
 
-Endpoint quote resmi: [Dokumentasi Twelve Data](https://twelvedata.com/docs). Provider menampilkan harga quote, perubahan, persentase perubahan, dan timestamp quote terakhir. Waktu yang tersedia, interval pembaruan, dan apakah datanya real-time atau tertunda bergantung pada paket, lisensi, bursa, serta izin penggunaan data milik pengguna API. WealthPilot melakukan polling dan cache; **ini bukan streaming tick-by-tick**. Jika provider gagal, aplikasi bisa menampilkan snapshot sebelumnya dengan label bahwa datanya basi.
+WealthPilot menggunakan dua endpoint resmi Twelve Data: [`/quote`](https://twelvedata.com/docs#quote) untuk quote dan perubahan yang disediakan provider, serta [`/time_series`](https://twelvedata.com/docs#time-series) untuk candle historis yang benar-benar digambar pada grafik. Endpoint grafik lokal adalah `/api/market/series/SPY?range=1D`; parameter rentang yang didukung adalah `1D`, `5D`, `1M`, dan `1Y`. Tombol refresh meminta data baru melewati cache server. Grafik menampilkan jumlah candle, interval, perubahan dari candle awal ke candle akhir pada rentang yang dipilih, harga close candle terakhir, waktu candle, serta status respons.
+
+**Data “real-time” bergantung pada paket, lisensi, bursa, hak tampilan, serta kuota API key kamu.** WealthPilot melakukan polling dan cache, bukan streaming tick-by-tick. Respons provider yang berhasil juga tidak otomatis berarti harganya live; periksa timestamp candle/quote dan ketentuan paket di akun Twelve Data. Bila provider gagal, aplikasi boleh menampilkan histori lokal yang ditandai basi, tetapi tidak membuat titik harga palsu.
 
 Nilai SPY dalam IDR merupakan estimasi harga SPY dalam USD dikalikan quote USD/IDR. Nilai itu bisa berbeda dari harga eksekusi dan kurs transaksi Pluang, biaya, spread, pajak, serta konversi aktual.
 
@@ -126,6 +133,18 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 Jika PowerShell melarang aktivasi virtual environment, pelajari kebijakan eksekusi pada komputer sendiri atau jalankan perintah Python secara langsung dari `.venv`. Hentikan server dengan `Ctrl+C`.
 
+
+## Memecahkan masalah Market Monitor
+
+1. **Pastikan API key sudah dibaca aplikasi.** Buka `http://127.0.0.1:8000/api/health`. Field `twelve_data_configured` harus bernilai `true`. Jika baru mengubah `.env`, hentikan server dengan `Ctrl+C` lalu jalankan kembali `run.bat`.
+2. **Periksa quote.** Buka `http://127.0.0.1:8000/api/market`. Lihat `spy.status`, `spy.message`, `fx.status`, dan timestamp. `not_configured` berarti API key belum terbaca; `error` berarti provider tidak memberikan quote yang valid; `stale` berarti aplikasi memakai quote lama.
+3. **Periksa seri grafik.** Buka `http://127.0.0.1:8000/api/market/series/SPY?range=1D&force=true`. Respons yang sehat memuat `status: "ok"`, `item_count` lebih dari satu, serta `items` dengan `datetime` dan `close`/`price`. Kalau `items` kosong, baca `message` untuk mengetahui apakah key, kuota, paket, atau izin instrumen bermasalah.
+4. **Jika browser masih menampilkan UI lama**, tutup tab lalu buka lagi dan tekan `Ctrl+F5`. Berkas CSS dan JavaScript memiliki penanda versi untuk membantu browser mengambil file baru.
+5. **Grafik emas tidak otomatis berisi histori.** Catat harga beli dan harga jual kembali yang terlihat di Tring! pada dua waktu berbeda. Grafik hanya memakai snapshot Pegadaian yang sungguh-sungguh disimpan; aplikasi tidak menyamakannya dengan harga spot emas internasional.
+6. **Perbedaan waktu tidak selalu kesalahan aplikasi.** SPY tidak diperdagangkan sepanjang hari, dan API dapat menyediakan data tertunda. Bandingkan waktu quote/candle dengan paket serta lisensi data Twelve Data. WealthPilot tidak menjanjikan streaming tick-by-tick.
+
+Jangan pernah mengirim API key atau file `.env` kepada orang lain untuk proses diagnosis. Jika butuh bantuan, bagikan hanya pesan error yang sudah dibersihkan dari kredensial pribadi.
+
 ## Menjalankan pengujian
 
 ```powershell
@@ -145,7 +164,8 @@ Dokumentasi interaktif FastAPI tersedia saat server berjalan: [http://127.0.0.1:
 | `GET /api/market` | Snapshot harga dan status provider |
 | `POST /api/market/pegadaian` | Simpan harga beli/jual kembali Pegadaian yang diinput pengguna |
 | `GET /api/market/pegadaian/history` | Histori harga Pegadaian yang direkam |
-| `GET /api/market/history/{symbol}` | Histori SPY atau USD/IDR yang disimpan |
+| `GET /api/market/history/{symbol}` | Histori quote SPY atau USD/IDR yang disimpan |
+| `GET /api/market/series/SPY?range=1D` | Candle historis SPY dari Twelve Data (`1D`, `5D`, `1M`, `1Y`) untuk grafik |
 | `GET /api/transactions` | Daftar transaksi |
 | `POST /api/transactions` | Validasi dan catat transaksi |
 | `PUT /api/transactions/{id}` | Ubah transaksi dan validasi ulang seluruh ledger |

@@ -9,7 +9,7 @@ Browser (HTML, CSS, JavaScript)
                v
        FastAPI (app/main.py)
           |      |      |
-          |      |      +---- Twelve Data API (quote SPY dan USD/IDR)
+          |      |      +---- Twelve Data API (quote intraday + candle time_series SPY)
           |      |
           |      +----------- Input snapshot harga Tring! oleh pengguna
           |
@@ -45,7 +45,8 @@ Akses database menggunakan koneksi pendek yang selalu di-commit, di-rollback saa
 | `GET /api/market` | Quote SPY, kurs, harga Pegadaian terakhir |
 | `POST /api/market/pegadaian` | Simpan snapshot harga manual |
 | `GET /api/market/pegadaian/history` | Histori snapshot Pegadaian |
-| `GET /api/market/history/{symbol}` | Histori SPY atau USD/IDR |
+| `GET /api/market/history/{symbol}` | Histori quote SPY atau USD/IDR |
+| `GET /api/market/series/SPY?range=1D` | Candle historis dari Twelve Data untuk grafik; rentang 1D/5D/1M/1Y |
 | `GET /api/transactions` | Daftar ledger |
 | `POST /api/transactions` | Catat transaksi tervalidasi |
 | `PUT /api/transactions/{id}` | Ubah transaksi dan validasi ulang seluruh ledger |
@@ -59,15 +60,17 @@ Akses database menggunakan koneksi pendek yang selalu di-commit, di-rollback saa
 
 Dokumentasi OpenAPI interaktif dapat dibuka dari `/docs` ketika aplikasi sedang berjalan.
 
-## Strategi quote
+## Strategi quote dan grafik historis
 
-1. Jika API key belum diisi, API menandai sumber sebagai belum dikonfigurasi.
-2. Quote diambil dari endpoint quote Twelve Data dan di-cache sesuai TTL pada `.env`.
-3. `last_quote_at` digunakan sebagai waktu quote bila disediakan. Bila provider hanya mengirim tanggal sesi atau timestamp candle, presisinya diberi label dan tidak dipresentasikan sebagai waktu quote yang tepat.
-4. Snapshot harga disimpan agar grafik histori terbentuk dari data yang benar-benar diterima.
-5. Jika provider gagal, quote cache/database dapat dipakai sebagai data basi dan diberi status `stale`; aplikasi tidak membuat harga baru.
-6. Harga emas hanya berubah di dashboard setelah pengguna menyimpan snapshot yang disalin dari Tring!.
-7. Snapshot Pegadaian yang berusia lebih dari 24 jam ditandai basi; sumber harga tidak dipalsukan saat provider tidak tersedia.
+1. Jika API key belum diisi, API menandai sumber sebagai belum dikonfigurasi dan tidak mengarang harga.
+2. Quote SPY dan USD/IDR diambil dari endpoint `/quote` Twelve Data dengan interval konfigurasi dan di-cache sesuai TTL pada `.env`.
+3. Grafik SPY meminta candle OHLCV melalui endpoint `/time_series`. Rentang 1D memakai interval 1 menit (hingga 390 candle), 5D memakai interval 5 menit (hingga 390 candle), 1M memakai interval harian (30 candle), dan 1Y memakai interval harian (252 candle).
+4. Candle diurutkan berdasarkan waktu provider, disimpan ke tabel `market_bars`, dan ditampilkan dengan label sumber, jumlah candle, perubahan dalam rentang terpilih, close candle terakhir, serta waktu candle.
+5. Cache grafik bawaan 60 detik menyeimbangkan pembaruan dan penggunaan kuota. Refresh manual melewati cache aplikasi untuk meminta respons baru dari provider. Cache provider eksternal dan keterlambatan paket tetap berada di luar kendali WealthPilot.
+6. Jika provider gagal, histori database dapat ditampilkan dengan status `stale` dan keterangan kegagalan; bila belum ada data tersimpan, respons menjelaskan bahwa data belum dikonfigurasi atau tidak tersedia.
+7. `last_quote_at` dipakai sebagai waktu quote bila tersedia. Bila provider hanya mengirim tanggal sesi atau timestamp candle, presisinya diberi label dan tidak dipresentasikan sebagai waktu quote yang tepat.
+8. Grafik emas menggunakan snapshot harga jual kembali yang dimasukkan berdasarkan Tring!; tidak ada penggantian otomatis dengan harga spot global. Grafik memerlukan sedikitnya dua snapshot untuk menunjukkan perubahan.
+9. Snapshot Pegadaian yang berusia lebih dari 24 jam ditandai basi. Status “berhasil dari provider” tidak dimaknai sebagai jaminan data tick-by-tick.
 
 ## Batasan arsitektur
 
