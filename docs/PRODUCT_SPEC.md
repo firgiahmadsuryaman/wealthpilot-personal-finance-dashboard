@@ -1,67 +1,80 @@
-# Product Brief — WealthPilot
+# Spesifikasi Produk — WealthPilot
 
-## Product statement
+## 1. Pernyataan produk
 
-WealthPilot is a local-first personal wealth dashboard designed to help people—especially freelancers with irregular income—understand what they contributed, what their assets are worth now, and whether their financial goals are progressing.
+WealthPilot adalah dashboard keuangan dan investasi pribadi yang membantu pengguna memahami uang yang telah dimasukkan, nilai aset saat ini, keuntungan/kerugian, kualitas data harga, dan perkembangan target keuangan.
 
-## Primary user
+## 2. Pengguna utama
 
-A single user managing personal investments, recurring and irregular income, cash reserve needs, and more than one financial goal. The first release is local-first and is not a multi-user SaaS.
+Versi awal ditujukan untuk satu pengguna yang mengelola penghasilan freelance tidak menentu, uang tunai, Tabungan Emas Pegadaian, ETF SPY, dan target keuangan pribadi. Produk ini local-first, bukan layanan multi-pengguna.
 
-## Main user problems
+## 3. Masalah yang ingin diselesaikan
 
-1. Contributions are easily confused with market gains or losses.
-2. Price changes are hard to interpret without seeing the data source and timestamp.
-3. Irregular income makes a fixed monthly investment plan unrealistic.
-4. Goals are difficult to track if they are tied to fixed templates rather than the user's priorities.
-5. A missing quote must not be treated as a zero-value asset.
+1. Modal sering dianggap sama dengan nilai investasi saat ini.
+2. Perubahan harga tidak bermakna bila sumber serta waktu pembaruan tidak terlihat.
+3. Penghasilan tidak menentu membuat komitmen investasi bulanan yang kaku kurang sesuai.
+4. Target keuangan perlu dapat dibuat pengguna sendiri, bukan dibatasi template tertentu.
+5. Harga yang hilang tidak boleh diganti angka nol.
+6. Transaksi harus ditolak jika membuat jumlah aset atau kas tidak masuk akal.
 
-## Product principles
+## 4. Prinsip produk
 
-- Keep external cash flows distinct from internal asset transactions.
-- Treat the transaction ledger as the basis for accounting calculations.
-- Show modal, current market value, realized P/L, and unrealized P/L separately.
-- Display a data source and timestamp where available.
-- Do not label prices as guaranteed real-time unless the source and licence support it.
-- Do not fabricate values when a market source is unavailable.
-- Let the user create goals with any name, target amount, initial saved amount, notes, and optional target date.
-- Keep planning goals separate from actual bank balances and investment holdings until an explicit reconciliation feature is implemented.
-- Never request credentials, PINs, OTPs, or session tokens for Pegadaian or Pluang.
+- Ledger transaksi adalah sumber utama perhitungan portofolio.
+- Setoran, penarikan, pembelian, penjualan, dan nilai pasar dibedakan.
+- Semua angka harga membawa konteks sumber dan timestamp bila tersedia.
+- Harga manual diberi label sebagai snapshot manual.
+- Harga yang basi bisa ditampilkan untuk konteks, tetapi harus ditandai.
+- Target keuangan tidak dianggap sebagai saldo rekening atau investasi aktual tanpa rekonsiliasi eksplisit.
+- Aplikasi tidak meminta kredensial, PIN, OTP, atau token sesi aplikasi finansial lain.
+- Tidak ada pembelian/penjualan otomatis atau saran investasi yang dijamin.
 
-## Current scope
+## 5. Lingkup MVP
 
-- Record deposits, withdrawals, opening positions, buys, sells, fees, and cash income.
-- Calculate portfolio cash, net contributions, holdings, current valuation when quotes are available, and profit/loss.
-- Store user-entered Pegadaian Tabungan Emas price snapshots from Tring! by Pegadaian.
-- Retrieve SPY and USD/IDR quote data through a configured market-data provider.
-- View recorded quote history and timestamps.
-- Create, update, list, and delete custom financial goals.
-- Review cash-flow history and portfolio allocation.
+- Pencatatan setoran, penarikan, saldo awal aset, pembelian, penjualan, biaya, dan dividen.
+- Ringkasan kas, modal bersih, nilai pasar bila lengkap, realized P/L, dan unrealized P/L.
+- Harga beli/jual kembali Tabungan Emas Pegadaian yang dimasukkan dari Tring! beserta histori.
+- Quote SPY dan USD/IDR dari provider yang dikonfigurasi.
+- Histori quote dan label kualitas data.
+- CRUD target keuangan bebas.
+- Ringkasan arus kas serta komposisi aset.
+- Ekspor ledger CSV.
+- Pengujian dan workflow CI.
 
-## Not in current scope
+## 6. Di luar lingkup saat ini
 
-- Automated login or balance sync with Tring! or Pluang.
-- Guaranteed tick-by-tick market streaming.
-- Order placement, trade execution, or automatic buy/sell decisions.
-- Multi-user accounts, cloud storage, or hosted financial-data processing.
-- Automatic reconciliation of a goal's saved amount with bank balances or portfolio holdings.
-- Investment return guarantees or personalized regulated financial advice.
+- Login atau sinkronisasi saldo otomatis ke Tring! atau Pluang.
+- Streaming harga tick-by-tick yang dijamin.
+- Eksekusi order trading atau auto-buy/auto-sell.
+- Multi-pengguna, penyimpanan cloud, atau pengelolaan akun pelanggan.
+- Rekonsiliasi otomatis target dengan saldo bank atau investasi.
+- Jaminan imbal hasil atau nasihat keuangan yang dipersonalisasi.
 
-## Data source contract
+## 7. Kontrak sumber data
 
-### Tabungan Emas Pegadaian
+### Pegadaian
 
-The user manually captures the customer-buy price and customer sell-back/buyback price shown in Tring!, the exact unit, and the capture time. Valuation uses the customer sell-back price. The snapshot represents a recorded quote, not a continuous feed or necessarily an executable price for every account at every moment.
+Pengguna mencatat harga beli nasabah dan harga jual kembali yang terlihat di Tring!, satuan harga yang tepat, serta waktu pengamatan. Valuasi menggunakan harga jual kembali. Data ini tidak dianggap feed kontinyu atau harga yang selalu berubah setiap detik.
 
-### SPY and USD/IDR
+### SPY dan USD/IDR
 
-The app retrieves provider quotes only when a valid API key is configured and the selected plan supports the instruments, freshness, and display use. The app uses polling and caching; the provider timestamp and plan govern quote freshness. Provider price and USD/IDR conversion are estimates, not guarantees of a Pluang execution price or transaction FX rate.
+Quote diambil dari Twelve Data saat API key dikonfigurasi. Akses, tingkat keterlambatan, interval pembaruan, dan izin display tergantung paket serta lisensi provider. Nilai SPY dalam IDR adalah estimasi berdasarkan harga quote dan quote USD/IDR, bukan harga eksekusi Pluang.
 
-## Success criteria for the MVP
+## 8. Aturan hitung
 
-- A new installation contains no fabricated holdings or price snapshots.
-- Unit tests prove that missing valuation data does not become zero valuation.
-- Unit tests prove that modal and portfolio value stay distinct.
-- The user can create and edit a generic goal without any hard-coded goal category.
-- The UI distinguishes a source quote from manual input and records timestamps.
-- The README explains setup, data-source limitations, accounting rules, and safe local use.
+- Modal bersih = setoran eksternal + dasar modal aset saldo awal − penarikan eksternal.
+- Kas = setoran − penarikan − pembelian + hasil penjualan bersih + dividen bersih.
+- Dasar modal aset yang terjual dihitung dengan metode rata-rata tertimbang.
+- P/L belum terealisasi = nilai pasar terkini − dasar modal aset yang masih dimiliki.
+- P/L total hanya disajikan sebagai angka lengkap ketika semua aset yang dimiliki memiliki valuasi; harga yang hilang tidak otomatis diartikan nol.
+- Persentase emas membandingkan dua snapshot harga jual kembali yang tercatat berurutan. Persentase SPY mengikuti provider terhadap penutupan sebelumnya.
+
+## 9. Kriteria keberhasilan MVP
+
+- Instalasi baru tidak berisi saldo dan harga palsu.
+- Modal, nilai pasar, dan P/L tampil terpisah.
+- Pembelian tanpa saldo kas tercatat dan penjualan melebihi kepemilikan ditolak.
+- Harga emas yang diinput per 0,01 gram dinormalisasi dengan benar.
+- Quote provider menggunakan timestamp quote terakhir jika tersedia; kegagalan provider tidak mengubah harga menjadi nol.
+- Pengguna dapat membuat, mengubah, dan menghapus target sendiri.
+- Ledger dapat diekspor ke CSV.
+- Tes inti berjalan sebelum commit dan otomatis pada GitHub Actions.

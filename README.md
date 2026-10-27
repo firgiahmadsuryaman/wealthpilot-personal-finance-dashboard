@@ -1,149 +1,195 @@
-# WealthPilot — Personal Wealth Dashboard
+# WealthPilot — Dasbor Keuangan dan Investasi Pribadi
 
-[![Tests](https://img.shields.io/badge/tests-unittest-informational)](https://docs.python.org/3/library/unittest.html)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
-[![Database](https://img.shields.io/badge/database-SQLite-003B57)](https://www.sqlite.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![SQLite](https://img.shields.io/badge/SQLite-database-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Lisensi MIT](https://img.shields.io/badge/Lisensi-MIT-green.svg)](LICENSE)
 
-**A local-first financial dashboard that keeps invested capital separate from market value and profit/loss.** WealthPilot is built for users who want to track a portfolio, monitor market quotes, record cash flows, and manage their own financial goals without pretending that unavailable prices are real-time data.
+**WealthPilot adalah proyek portofolio personal finance dashboard yang membantu pengguna memisahkan modal asli, nilai pasar, dan keuntungan/kerugian investasi.** Aplikasi dirancang untuk penggunaan pribadi di komputer lokal, terutama untuk orang dengan pendapatan yang tidak selalu sama setiap bulan.
 
-> The UI is Indonesian-first. The app is a personal portfolio project and is not affiliated with Pegadaian, Pluang, or Twelve Data.
+> **Status sumber data:** harga Tabungan Emas Pegadaian diinput dari informasi aktual yang terlihat pada aplikasi Tring! by Pegadaian. Harga SPY dan kurs USD/IDR diambil dari Twelve Data jika API key, akses instrumen, serta izin penggunaan data tersedia. Aplikasi ini belum terhubung langsung ke akun Pegadaian maupun Pluang dan bukan aplikasi trading.
 
-## Why this project exists
+## Daftar isi
 
-A portfolio's current market value is not the same as the money contributed. WealthPilot keeps the transaction ledger as the source of truth and presents separate figures for net contributions, current portfolio value, cash balance, realized P/L, and unrealized P/L. It also makes market-data limitations visible instead of silently filling missing quotes with zero.
+- [Tujuan proyek](#tujuan-proyek)
+- [Fitur](#fitur)
+- [Cara perhitungan](#cara-perhitungan)
+- [Sumber dan kesegaran data](#sumber-dan-kesegaran-data)
+- [Teknologi](#teknologi)
+- [Instalasi di Windows](#instalasi-di-windows)
+- [Menjalankan pengujian](#menjalankan-pengujian)
+- [API yang tersedia](#api-yang-tersedia)
+- [Keamanan dan privasi](#keamanan-dan-privasi)
+- [Rencana pengembangan](#rencana-pengembangan)
+- [Portofolio GitHub dan LinkedIn](#portofolio-github-dan-linkedin)
 
-## Features
+## Tujuan proyek
 
-- **Portfolio accounting:** separates external deposits/withdrawals from internal asset buys/sells.
-- **Transaction ledger:** records opening balances, buys, sells, fees, and cash income.
-- **Pegadaian Tabungan Emas tracking:** stores customer-buy and customer-sell/buyback price snapshots copied from Tring! by Pegadaian; valuation uses the customer sell-back price.
-- **SPY and USD/IDR quote integration:** uses Twelve Data when an API key and suitable market-data permission are configured.
-- **Market monitor:** displays quote source/status and timestamps, plus stored quote history.
-- **Custom financial goals:** create, edit, and delete goals with your own name, target amount, initial progress, and target date.
-- **Cash flow and portfolio allocation:** presents the recorded investment account's cash activity and asset distribution.
-- **Local-first storage:** transaction data is stored in SQLite on the local machine.
-- **Tests and CI:** accounting unit tests and API tests for custom-goal CRUD, with a GitHub Actions workflow.
+WealthPilot dikembangkan untuk menyelesaikan masalah pencatatan keuangan yang umum terjadi:
 
-## Data integrity by design
+1. Modal yang disetorkan sering tercampur dengan kenaikan atau penurunan harga aset.
+2. Harga pasar tidak berguna jika sumber dan waktu pembaruannya tidak jelas.
+3. Pendapatan freelance yang tidak menentu membutuhkan alokasi yang fleksibel, bukan kewajiban investasi bulanan.
+4. Pengguna perlu membuat target keuangan sendiri tanpa menu tetap seperti rumah atau pernikahan.
+5. Harga yang tidak tersedia tidak boleh dianggap nol karena akan menghasilkan valuasi yang menyesatkan.
 
-| Data | How WealthPilot handles it |
+## Fitur
+
+- **Ringkasan portofolio:** modal bersih, nilai portofolio, kas, P/L total, P/L terealisasi, dan P/L belum terealisasi.
+- **Ledger transaksi:** setoran, penarikan, saldo awal aset, pembelian, penjualan, biaya, dividen/pendapatan kas, serta koreksi transaksi dengan validasi ulang urutan ledger.
+- **Tabungan Emas Pegadaian:** simpan harga beli nasabah dan harga jual kembali dari Tring!, satuan harga, sumber, catatan, timestamp, serta histori snapshot.
+- **SPY dan USD/IDR:** quote melalui Twelve Data ketika API dan paket data mengizinkan.
+- **Persentase kenaikan/penurunan:** SPY memakai perubahan yang diberikan provider; emas membandingkan snapshot Pegadaian terbaru dengan snapshot sebelumnya yang dicatat.
+- **Status data:** harga baru, tersimpan dari database, belum dikonfigurasi, atau tidak tersedia ditangani secara terpisah.
+- **Grafik histori:** dibangun dari snapshot yang benar-benar tersimpan, bukan data contoh.
+- **Target keuangan fleksibel:** pengguna dapat membuat, mengubah, dan menghapus target dengan nama, nominal, progres awal, catatan, dan tanggal target sendiri.
+- **Arus kas dan komposisi portofolio.**
+- **Ekspor riwayat transaksi ke CSV** untuk analisis spreadsheet, serta **cadangan JSON seluruh data lokal** (transaksi, target, snapshot Pegadaian, dan histori pasar).
+- **Pengujian otomatis** untuk perhitungan, validasi transaksi, harga pasar, target, dan ekspor.
+- **GitHub Actions** untuk menjalankan tes pada beberapa versi Python.
+
+## Cara perhitungan
+
+### Istilah utama
+
+| Istilah | Makna |
 |---|---|
-| Net contributions | Derived from external deposits, imported opening positions, and external withdrawals; market changes do not alter contributions. |
-| Portfolio value | Portfolio cash plus the latest available valuation of holdings. If a price is missing, valuation remains incomplete rather than assuming zero. |
-| Gold value | Uses the Tabungan Emas Pegadaian customer sell-back price captured from Tring!, not a global spot-gold quote or another gold product's price. |
-| SPY value | Uses the provider's SPY quote and USD/IDR rate; it can differ from Pluang's execution price and transaction FX rate. |
-| Realized P/L | Calculated when a holding is sold, using the MVP's weighted-average cost-basis convention. |
-| Unrealized P/L | Current holding valuation minus remaining cost basis. |
-| Financial goals | User-defined planning records; progress is manual and separate from bank accounts and portfolio assets. |
-| Data freshness | Provider quote timestamp and source status are shown when available. Polling does not mean tick-by-tick streaming. |
+| Modal bersih | Setoran eksternal + dasar modal saldo awal aset − penarikan eksternal. Setoran baru tidak dicatat sebagai keuntungan. |
+| Saldo kas portofolio | Kas yang tercatat di ledger setelah pembelian, penjualan, dividen, setoran, dan penarikan. Ini bukan saldo semua rekening bank pengguna. |
+| Nilai portofolio | Kas portofolio + estimasi nilai pasar semua aset yang bisa dinilai. |
+| P/L belum terealisasi | Nilai pasar aset yang masih dimiliki − dasar modal aset yang tersisa. |
+| P/L terealisasi | Hasil penjualan bersih dibandingkan dasar modal unit yang dijual, ditambah pendapatan dividen yang dicatat. |
+| P/L total | Nilai portofolio − modal bersih, ketika valuasi semua kepemilikan lengkap. |
 
-## Technology stack
+Dasar modal penjualan menggunakan metode rata-rata tertimbang. Biaya transaksi masuk ke dasar modal pembelian atau mengurangi hasil penjualan. Untuk emas, valuasi menggunakan harga jual kembali Pegadaian karena itulah harga yang lebih relevan untuk memperkirakan penerimaan jika saldo dijual kembali.
+
+### Contoh satuan harga emas
+
+Jika Tring! menampilkan harga per 0,01 gram, masukkan satuan **per 0,01 gram** pada formulir harga. Sistem menyimpan harga yang dinormalisasi ke rupiah per gram untuk perhitungan, sekaligus mempertahankan angka mentah yang dimasukkan. Kuantitas aset emas di ledger dicatat dalam gram.
+
+## Sumber dan kesegaran data
+
+### Tabungan Emas Pegadaian / Tring!
+
+Versi ini tidak melakukan login otomatis atau membaca saldo dari akun pribadi. Salin harga beli dan harga jual kembali yang benar-benar terlihat pada Tring!, pilih satuan yang benar, lalu simpan waktu pengamatan. Persentase perubahannya adalah selisih antara snapshot yang berurutan, **bukan jaminan perubahan harian real-time**. Untuk menghindari penyamaan produk, jangan mengganti harga Tabungan Emas Pegadaian dengan harga spot emas internasional atau harga emas fisik produk lain.
+
+Referensi publik Pegadaian: [informasi harga emas](https://pegadaian.co.id/harga-emas) dan [layanan Tabungan Emas](https://pegadaian.co.id/emas/tabungan-emas). Harga yang ditampilkan akun/aplikasi bisa memiliki konteks produk dan ketentuan tersendiri.
+
+### SPY dan USD/IDR
+
+Tambahkan API key pribadi pada file `.env` (interval cache SPY bawaan 60 detik, FX 900 detik; sesuaikan dengan kuota paketmu):
+
+```dotenv
+TWELVE_DATA_API_KEY=masukkan_api_key_milikmu
+SPY_CACHE_SECONDS=60
+USDIDR_CACHE_SECONDS=900
+```
+
+Endpoint quote resmi: [Dokumentasi Twelve Data](https://twelvedata.com/docs). Provider menampilkan harga quote, perubahan, persentase perubahan, dan timestamp quote terakhir. Waktu yang tersedia, interval pembaruan, dan apakah datanya real-time atau tertunda bergantung pada paket, lisensi, bursa, serta izin penggunaan data milik pengguna API. WealthPilot melakukan polling dan cache; **ini bukan streaming tick-by-tick**. Jika provider gagal, aplikasi bisa menampilkan snapshot sebelumnya dengan label bahwa datanya basi.
+
+Nilai SPY dalam IDR merupakan estimasi harga SPY dalam USD dikalikan quote USD/IDR. Nilai itu bisa berbeda dari harga eksekusi dan kurs transaksi Pluang, biaya, spread, pajak, serta konversi aktual.
+
+## Teknologi
 
 - **Backend:** Python, FastAPI, Pydantic, HTTPX
 - **Database:** SQLite
-- **Frontend:** HTML, CSS, vanilla JavaScript
-- **Market data:** Twelve Data API for SPY and USD/IDR quotes
-- **Testing:** Python `unittest` and FastAPI's test client
-- **Automation:** GitHub Actions
+- **Frontend:** HTML, CSS, JavaScript
+- **Data pasar:** Twelve Data untuk SPY dan USD/IDR; snapshot harga Pegadaian dimasukkan manual
+- **Pengujian:** `unittest`, `TestClient` FastAPI
+- **CI:** GitHub Actions
 
-## Architecture
+## Instalasi di Windows
 
-```text
-Browser (HTML / CSS / JavaScript)
-              |
-              | same-origin JSON requests
-              v
-      FastAPI application
-       |       |       |
-       |       |       +---- Twelve Data API (SPY, USD/IDR)
-       |       |
-       |       +------------ Manual Tring! Pegadaian price snapshots
-       |
-       +-------------------- SQLite transaction ledger and goals
-```
+### Cara mudah
 
-See [Architecture](docs/ARCHITECTURE.md) for the routes and accounting conventions.
+1. Pasang Python 3.10 atau yang lebih baru.
+2. Ekstrak proyek atau clone repository.
+3. Buka folder `wealthpilot` di File Explorer.
+4. Jalankan `run.bat`.
+5. Buka [http://127.0.0.1:8000](http://127.0.0.1:8000).
+6. Untuk harga SPY dan USD/IDR, isi `TWELVE_DATA_API_KEY` di file `.env`, lalu tutup dan jalankan ulang aplikasi.
+7. Pada menu **Pengaturan data**, salin harga beli serta harga jual kembali dari Tring! by Pegadaian.
+8. Catat saldo awal atau transaksi aktual sebelum menggunakan angka untuk memahami kondisi portofolio pribadi.
 
-## Quick start — Windows
+Jika `.env` sudah ada, jangan timpa file tersebut karena mungkin sudah berisi API key.
 
-1. Install Python 3.10 or newer.
-2. Download or clone this repository, then open the project folder in PowerShell.
-3. Run `run.bat`. The script creates a virtual environment, installs dependencies, and copies `.env.example` to `.env` if needed.
-4. Open **http://127.0.0.1:8000** in your browser.
-5. To enable SPY and USD/IDR quotes, add your key to `.env`:
-
-   ```dotenv
-   TWELVE_DATA_API_KEY=replace_with_your_own_key
-   SPY_CACHE_SECONDS=180
-   USDIDR_CACHE_SECONDS=900
-   ```
-
-6. Restart the app after editing `.env`.
-7. In **Pengaturan data**, enter the customer-buy and customer-sell values currently shown in Tring! by Pegadaian, choose the correct quote unit (per gram or per 0.01 gram), and save the timestamp.
-8. Enter opening positions and actual transactions from your records before interpreting portfolio numbers.
-
-### Run manually
+### Instalasi manual melalui PowerShell
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-If PowerShell says `.env` already exists, do not overwrite your existing key; edit it directly. Stop the server with `Ctrl+C`.
+Jika PowerShell melarang aktivasi virtual environment, pelajari kebijakan eksekusi pada komputer sendiri atau jalankan perintah Python secara langsung dari `.venv`. Hentikan server dengan `Ctrl+C`.
 
-## Run tests
+## Menjalankan pengujian
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
 
-The tests use synthetic values only inside isolated test cases and temporary databases; they do not seed sample holdings into your live application database.
+Tes menggunakan data sintetis di database sementara; tes tidak mengisi aset contoh ke database pribadi WealthPilot. Saat ada perubahan, jalankan tes sebelum commit dan pastikan `git status` tidak menampilkan `.env` atau database lokal.
 
-## Important data-source limitations
+## API yang tersedia
 
-### Pegadaian / Tring!
+Dokumentasi interaktif FastAPI tersedia saat server berjalan: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
-The current version **does not automatically connect to your Pegadaian account**. It has not verified a documented public API that can read a personal Tabungan Emas balance and account-specific prices. To keep the valuation aligned with the actual product, copy the customer-buy and customer-sell values from Tring! and save a timestamp. Pegadaian pricing may update periodically and is not guaranteed to change every second.
+| Endpoint | Fungsi |
+|---|---|
+| `GET /api/health` | Status aplikasi dan konfigurasi sumber data |
+| `GET /api/overview` | Ringkasan portofolio, harga, target, dan transaksi terakhir |
+| `GET /api/market` | Snapshot harga dan status provider |
+| `POST /api/market/pegadaian` | Simpan harga beli/jual kembali Pegadaian yang diinput pengguna |
+| `GET /api/market/pegadaian/history` | Histori harga Pegadaian yang direkam |
+| `GET /api/market/history/{symbol}` | Histori SPY atau USD/IDR yang disimpan |
+| `GET /api/transactions` | Daftar transaksi |
+| `POST /api/transactions` | Validasi dan catat transaksi |
+| `PUT /api/transactions/{id}` | Ubah transaksi dan validasi ulang seluruh ledger |
+| `DELETE /api/transactions/{id}` | Hapus transaksi jika sisa ledger tetap valid |
+| `GET /api/export/transactions.csv` | Unduh transaksi sebagai CSV |
+| `GET /api/export/backup.json` | Unduh cadangan seluruh tabel aplikasi dalam JSON |
+| `GET /api/goals` | Daftar target keuangan |
+| `POST /api/goals` | Buat target |
+| `PUT /api/goals/{id}` | Ubah target |
+| `DELETE /api/goals/{id}` | Hapus target |
 
-### SPY / USD/IDR
+## Pencadangan
 
-Provider quotes require a Twelve Data API key and a subscription/license that allows the required instruments, freshness, and display use. The app polls and uses a server-side cache; it is not a direct exchange feed or tick-by-tick streaming application. A provider quote is not guaranteed to equal Pluang's execution price, and displayed values can be delayed based on provider plan and market rules.
+Di menu **Pengaturan data**, pilih **Cadangkan seluruh data** untuk mengunduh JSON berisi tabel transaksi, target keuangan, snapshot harga Pegadaian, dan snapshot market-data. Endpoint ini tidak menyertakan `.env` atau API key. Berkas cadangan tetap merupakan data keuangan pribadi, sehingga simpan secara aman dan jangan masukkan ke repository publik. Fitur ini adalah ekspor; proses impor/pemulihan otomatis belum tersedia.
 
-Before exposing the dashboard to other users, verify the provider's latest data-redistribution and display license. Do not redistribute market data just because an API endpoint is technically accessible.
+## Keamanan dan privasi
 
-## Security and privacy
+- Aplikasi secara default hanya mendengarkan `127.0.0.1` di komputer lokal.
+- File `.env`, database SQLite, log, riwayat transaksi, berkas cadangan JSON, dan tangkapan layar pribadi tidak boleh diunggah ke GitHub.
+- Jangan memasukkan password, PIN, OTP, cookie, atau token sesi Pegadaian/Pluang ke aplikasi.
+- Jangan mengekspos server ke internet atau LAN tanpa autentikasi, otorisasi, HTTPS, backup, pembatasan akses, dan peninjauan keamanan.
+- API key Twelve Data disimpan di `.env`, bukan di JavaScript atau HTML.
+- Data market pihak ketiga memiliki aturan lisensi; jangan memublikasikan atau mendistribusikan ulang quote tanpa hak yang sesuai.
 
-- The app binds to `127.0.0.1` by default and is intended for local use.
-- Keep `.env`, API keys, SQLite databases, logs, and account-specific screenshots out of Git.
-- Never enter Pegadaian or Pluang passwords, PINs, OTPs, session cookies, or authentication tokens into WealthPilot.
-- Do not expose the server publicly without authentication, authorization, HTTPS, rate limiting, backup, and security review.
-- This project is an educational portfolio tool, not financial advice or an execution platform.
+Lihat [SECURITY.md](SECURITY.md).
 
-Read [SECURITY.md](SECURITY.md) for additional precautions.
+## Rencana pengembangan
 
-## Roadmap
+- [x] Pisahkan modal bersih dari nilai pasar dan P/L.
+- [x] Validasi urutan transaksi untuk mencegah pembelian atau penjualan yang tidak didukung ledger.
+- [x] Harga Pegadaian dengan satuan yang dinormalisasi dan timestamp.
+- [x] Quote SPY/USD/IDR dengan cache, timestamp quote terakhir, dan fallback snapshot basi.
+- [x] CRUD target keuangan bebas.
+- [x] Ekspor ledger ke CSV dan cadangan JSON seluruh data.
+- [x] Tes otomatis untuk alur utama dan sumber data.
+- [ ] Impor CSV dengan pemeriksaan dan pratinjau rekonsiliasi.
+- [ ] Koreksi transaksi dengan jejak audit.
+- [ ] Autentikasi jika suatu saat dibuat versi multi-pengguna atau hosting.
+- [ ] Evaluasi integrasi Pegadaian resmi jika dokumentasi API publik dan izin akses yang sesuai tersedia.
 
-- [x] Keep contribution capital separate from market-based valuation.
-- [x] Transaction ledger and weighted-average cost basis for sales.
-- [x] Manual Pegadaian quote snapshots with source unit and timestamp.
-- [x] Provider-backed SPY and USD/IDR quote path.
-- [x] User-defined financial goals with create, update, and delete.
-- [x] Automated accounting and goal API tests.
-- [ ] CSV import/export with reconciliation checks.
-- [ ] Editable transaction corrections with audit history.
-- [ ] Optional target contribution planner and scenario simulation.
-- [ ] Add authentication before any multi-user or hosted deployment.
-- [ ] Investigate an official Pegadaian data integration if one becomes available and permitted.
+## Portofolio GitHub dan LinkedIn
 
-## Project portfolio notes
+Panduan langkah demi langkah untuk GitHub, commit berbahasa Indonesia, ringkasan proyek, serta posting LinkedIn berada di [docs/PANDUAN_GITHUB_LINKEDIN_ID.md](docs/PANDUAN_GITHUB_LINKEDIN_ID.md). Ringkasan portofolio awal juga ada di [docs/PORTFOLIO_GUIDE_ID.md](docs/PORTFOLIO_GUIDE_ID.md).
 
-For product scope and success criteria, see [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md); for the component map and API routes, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For a ready-to-use GitHub description, repository topics, LinkedIn project summary, and a post draft in Indonesian, see [docs/PORTFOLIO_GUIDE_ID.md](docs/PORTFOLIO_GUIDE_ID.md). Also see [CHANGELOG.md](CHANGELOG.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+## Lisensi
 
-## License
-
-Distributed under the [MIT License](LICENSE).
+Proyek ini menggunakan [MIT License](LICENSE). Lisensi proyek tidak memberikan hak untuk mendistribusikan data pasar pihak ketiga.
