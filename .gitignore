@@ -15,6 +15,9 @@ htmlcov/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/*.db-*
+data/*.sqlite-*
+data/*.sqlite3-*
 *.log
 
 # Editors and OS
